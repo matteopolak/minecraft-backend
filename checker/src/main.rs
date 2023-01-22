@@ -80,7 +80,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							let result = account.check(&name).await;
 
 							match result {
-								Ok(available) => break available,
+								Ok(available) => {
+									println!(
+										"[{}] {} is {}",
+										time(),
+										name,
+										if available {
+											"available"
+										} else {
+											"unavailable"
+										}
+									);
+
+									break available;
+								}
 								Err(Error::Delay(duration)) => {
 									println!(
 										"[{}] {} is rate limited, waiting {} seconds",

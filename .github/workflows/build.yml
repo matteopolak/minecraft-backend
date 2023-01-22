@@ -15,9 +15,9 @@ jobs:
       - name: Install nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-11-11
+          toolchain: nightly
           override: true
-          components: rustfmt clippy
+          components: rustfmt, clippy
           profile: minimal
       - name: Set up cargo cache
         uses: actions/cache@v3

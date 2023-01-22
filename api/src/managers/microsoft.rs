@@ -18,12 +18,15 @@ pub struct JavaPayload<'a> {
 pub struct JavaResponse {
 	access_token: String,
 	token_type: String,
-	expires_in: u64,
+	expires_in: u32,
 }
 
+/// # Errors
+/// - `xbox::Error::RequestError` if the request fails
+/// - `xbox::Error::DeserializationError` if the response cannot be deserialized
 pub async fn get_java_token(
 	client: &Client,
-	credentials: &xbox::Credentials<'_>,
+	credentials: &xbox::Credentials,
 ) -> Result<JavaData, xbox::Error> {
 	let xsts = xbox::get_xsts_token(client, credentials).await?;
 
@@ -45,6 +48,6 @@ pub async fn get_java_token(
 
 	Ok(JavaData {
 		token: format!("{} {}", response.token_type, response.access_token),
-		expires_at: chrono::Utc::now() + chrono::Duration::seconds(response.expires_in as i64),
+		expires_at: chrono::Utc::now() + chrono::Duration::seconds(i64::from(response.expires_in)),
 	})
 }

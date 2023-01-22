@@ -2,20 +2,21 @@ use api::{microsoft::JavaData, xbox::Credentials};
 use reqwest::{Client, Proxy, StatusCode};
 use serde::Deserialize;
 
-pub struct Account<'a> {
+#[derive(Debug, Clone)]
+pub struct Account {
 	clients: Vec<Client>,
 	proxies: Vec<Proxy>,
-	credentials: Credentials<'a>,
+	credentials: Credentials,
 	index: usize,
 	token: Option<JavaData>,
 }
 
 #[derive(Debug)]
 pub enum Error {
-	NoClientError,
-	TokenError,
-	RequestError,
-	DeserializationError,
+	NoClient,
+	Token,
+	Request,
+	Deserialization,
 	Retry,
 	Delay(tokio::time::Duration),
 }
@@ -25,13 +26,10 @@ pub struct MinecraftResponse {
 	pub status: String,
 }
 
-impl<'a> Account<'a> {
-	pub fn new(username: &'a str, password: &'a str) -> Self {
+impl Account {
+	pub fn new(username: String, password: String) -> Self {
 		Self {
-			credentials: Credentials {
-				username: &username,
-				password: &password,
-			},
+			credentials: Credentials { username, password },
 			index: 0,
 			clients: vec![],
 			proxies: vec![],
@@ -82,14 +80,13 @@ impl<'a> Account<'a> {
 	}
 
 	pub async fn update_token(&mut self) -> Result<JavaData, Error> {
-		let (client, credentials) = match self.get_client_and_credentials() {
-			Some(data) => data,
-			None => return Err(Error::NoClientError),
+		let Some((client, credentials)) = self.get_client_and_credentials() else {
+			return Err(Error::NoClient);
 		};
 
 		api::microsoft::get_java_token(client, credentials)
 			.await
-			.map_err(|_| Error::TokenError)
+			.map_err(|_| Error::Token)
 	}
 
 	pub fn is_token_valid(token: Option<&JavaData>) -> bool {
@@ -100,29 +97,31 @@ impl<'a> Account<'a> {
 	}
 
 	pub async fn check(&mut self, name: &str) -> Result<bool, Error> {
-		let java = if !Self::is_token_valid(self.token.as_ref()) {
-			self.token = Some(self.update_token().await?);
+		let java = if Self::is_token_valid(self.token.as_ref()) {
 			self.token.clone()
 		} else {
+			self.token = Some(self.update_token().await?);
 			self.token.clone()
 		};
 
-		let client = match self.get_client() {
-			Some(client) => client,
-			None => return Err(Error::NoClientError),
+		let Some(client) = self.get_client() else {
+			return Err(Error::NoClient);
 		};
 
 		let response = match client
 			.get(format!(
 				"https://api.minecraftservices.com/minecraft/profile/name/{name}/available"
 			))
-			.header(reqwest::header::AUTHORIZATION, java.unwrap().token)
+			.header(
+				reqwest::header::AUTHORIZATION,
+				java.ok_or(Error::Token)?.token,
+			)
 			.send()
 			.await
 		{
 			Ok(response) => response,
 			Err(e) => {
-				eprintln!("Error: {:?}", e);
+				eprintln!("Error: {e:?}");
 				eprintln!("Proxy: {:?}", self.proxies.get(self.index));
 				self.remove_current_client();
 				return Err(Error::Retry);
@@ -139,13 +138,13 @@ impl<'a> Account<'a> {
 		}
 
 		if response.status() != StatusCode::OK {
-			return Err(Error::RequestError);
+			return Err(Error::Request);
 		}
 
 		Ok(response
 			.json::<MinecraftResponse>()
 			.await
-			.map_err(|_| Error::DeserializationError)?
+			.map_err(|_| Error::Deserialization)?
 			.status == "AVAILABLE")
 	}
 }

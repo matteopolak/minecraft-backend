@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic)]
 #![feature(async_fn_in_trait)]
 #![feature(string_leak)]
+#![allow(clippy::too_many_lines)]
 mod account;
 mod connectors;
 
@@ -9,6 +10,7 @@ use connectors::prelude::{
 	Connector, HighPrioritySource, LowPrioritySource, MediumPrioritySource, Submit,
 };
 use once_cell::sync::Lazy;
+use reqwest::header;
 use serde::Serialize;
 static HTTP: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
 const PROXIES_PER_ACCOUNT: usize = 4;
@@ -39,7 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	};
 
 	let proxies = proxies.by_ref();
-
 	let mut tasks = Vec::new();
 
 	for (index, mut account) in accounts.into_iter().enumerate() {
@@ -126,7 +127,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 						if updated && available {
 							HTTP.post("https://api.pushed.co/1/push")
-								.json(&PushedPayload {
+								.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+								.form(&PushedPayload {
 									app_key: "7ZbySgthX7JnmlPe3LHv",
 									app_secret: "D6sVv0aFEKg479IVI1JcdDaet1GOmc3dPQDWc5jiMFErx88gxjBBl6rtfJ1c8gsA",
 									target_type: "app",

@@ -62,10 +62,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 		// spawn a new tokio task for each account
 		tasks.push(tokio::spawn({
-			// cast the `connector` to highPrioritySource, mediumPrioritySource, or lowPrioritySource
-			// depending on the priority so that the `next` method can be called on it
-
-			// create closure that, when called, yields the next value
 			let mut connector = connectors::sources::postgres::Postgres::prepare().await?;
 			let mut account = account.clone();
 

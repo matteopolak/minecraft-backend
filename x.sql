@@ -1,0 +1,1 @@
+SELECT "names"."username", "names"."frequency", "names"."definition", "names"."verifiedAt", "names"."updatedAt", ("names"."valid" OR false), (("_NameToUser"."A" IS NOT NULL) OR false) FROM ("names" LEFT OUTER JOIN "_NameToUser" ON (("_NameToUser"."A" = "names"."username") AND ("_NameToUser"."B" = 0))) LIMIT 10 OFFSET 0

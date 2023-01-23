@@ -1,5 +1,7 @@
 [workspace]
 members = [
-	"checker",
 	"api",
+	"checker",
+	"database",
+	"server",
 ]

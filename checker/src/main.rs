@@ -12,8 +12,9 @@ use connectors::prelude::{
 use once_cell::sync::Lazy;
 use reqwest::header;
 use serde::Serialize;
+
 static HTTP: Lazy<reqwest::Client> = Lazy::new(reqwest::Client::new);
-const PROXIES_PER_ACCOUNT: usize = 4;
+static PROXIES_PER_ACCOUNT: usize = 4;
 
 #[derive(Serialize)]
 struct PushedPayload<'a> {

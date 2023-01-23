@@ -1,10 +1,9 @@
-use actix_web::{get, http::header, post, web, HttpRequest, HttpResponse, Responder};
-use database::{models::Name, schema};
-use diesel::dsl::count;
+use actix_web::{get, http::header, post, web, HttpRequest, HttpResponse};
+use database::schema;
 use diesel::prelude::*;
 use diesel::{
-	select, sql_types::Timestamp, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-	PgConnection, QueryDsl, Queryable, RunQueryDsl, TextExpressionMethods,
+	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, PgConnection, QueryDsl, Queryable,
+	RunQueryDsl, TextExpressionMethods,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +38,11 @@ pub struct ViewNamesResponse {
 	pub count: i64,
 }
 
+#[derive(Serialize)]
+pub struct NameResponse {
+	pub updated: bool,
+}
+
 #[post("/names")]
 pub async fn view_names(
 	data: web::Json<ViewNamesOptions>,
@@ -70,110 +74,218 @@ pub async fn view_names(
 		Err(_) => return Err(actix_web::error::ErrorUnauthorized("")),
 	};
 
-	let mut names = schema::names::table
-		.into_boxed()
-		.left_join(
+	let query = || {
+		let mut names = schema::names::table.into_boxed().left_join(
 			schema::likes::table.on(schema::likes::username
 				.eq(schema::names::username)
 				.and(schema::likes::user_id.eq(user_id))),
-		)
-		.limit(data.limit.unwrap_or(10))
-		.offset(data.offset.unwrap_or(0));
-
-	if let Some(search) = &data.search {
-		names =
-			names.filter(schema::names::username.like(format!("%{}%", search.to_ascii_lowercase())))
-	}
-
-	if data
-		.tags
-		.as_ref()
-		.map(|tags| tags.contains(&"new".to_string()))
-		.unwrap_or(false)
-	{
-		// filter for updated_at to be within the last 24 hours
-		names = names.filter(
-			schema::names::updated_at
-				.ge(chrono::Utc::now().naive_utc() - chrono::Duration::days(1)),
 		);
-	} else if let Some(from) = data.from {
-		names = names.filter(schema::names::updated_at.ge(from));
-	}
 
-	if let Some(to) = data.to {
-		names = names.filter(schema::names::updated_at.le(to));
-	}
+		if let Some(search) = &data.search {
+			names = names
+				.filter(schema::names::username.like(format!("%{}%", search.to_ascii_lowercase())))
+		}
 
-	// 'common' is a tag, filter for frequency >= 0.5
-	// 'short' is a tag, filter for length <= 7
-	// 'liked' is a tag, filter for liked = true
-	// 'taken' is a tag, filter for valid = false
-	// 'name' is a tag, filter for 'name' IN tags
+		if data
+			.tags
+			.as_ref()
+			.map(|tags| tags.contains(&"new".to_string()))
+			.unwrap_or(false)
+		{
+			// filter for updated_at to be within the last 24 hours
+			names = names.filter(
+				schema::names::updated_at
+					.ge(chrono::Utc::now().naive_utc() - chrono::Duration::days(1)),
+			);
+		} else if let Some(from) = data.from {
+			names = names.filter(schema::names::updated_at.ge(from));
+		}
 
-	let mut other_tags = Vec::new();
+		if let Some(to) = data.to {
+			names = names.filter(schema::names::updated_at.le(to));
+		}
 
-	if let Some(tags) = data.tags.as_ref() {
-		for tag in tags {
-			println!("tag {tag}");
-			match tag.as_str() {
-				"common" => names = names.filter(schema::names::frequency.ge(0.5)),
-				"short" => names = names.filter(schema::names::length.le(7)),
-				"liked" => {
-					println!("liked");
-					names = names.filter(schema::likes::username.is_not_null());
+		// 'common' is a tag, filter for frequency >= 0.5
+		// 'short' is a tag, filter for length <= 7
+		// 'liked' is a tag, filter for liked = true
+		// 'taken' is a tag, filter for valid = false
+		// 'name' is a tag, filter for 'name' IN tags
+
+		let mut other_tags = Vec::new();
+		let mut has_taken_tag = false;
+
+		if let Some(tags) = data.tags.as_ref() {
+			for tag in tags {
+				match tag.as_str() {
+					"common" => names = names.filter(schema::names::frequency.ge(0.5)),
+					"short" => names = names.filter(schema::names::length.le(7)),
+					"liked" => {
+						names = names.filter(schema::likes::username.is_not_null());
+					}
+					"taken" => {
+						names = names.filter(schema::names::valid.is_not_null());
+						has_taken_tag = true;
+					}
+					"name" => names = names.filter(schema::names::tags.contains(vec!["name"])),
+					tag => other_tags.push(tag),
 				}
-				"taken" => names = names.filter(schema::names::valid.is_not_null()),
-				"name" => names = names.filter(schema::names::tags.contains(vec!["name"])),
-				tag => other_tags.push(tag),
 			}
 		}
-	}
 
-	if !other_tags.is_empty() {
-		names = names.filter(schema::names::tags.contains(other_tags));
-	}
+		if !has_taken_tag {
+			names = names.filter(schema::names::valid.eq(true));
+		}
 
-	let result = names.select((
-		schema::names::username,
-		schema::names::frequency,
-		schema::names::definition.nullable(),
-		schema::names::verified_at,
-		schema::names::updated_at,
-		schema::names::valid
-			.nullable()
-			.or(false.into_sql::<diesel::sql_types::Bool>()),
-		// TRUE if it is liked, FALSE otherwise -- default to FALSE if the value is NULL
-		schema::likes::username
-			.is_not_null()
-			.nullable()
-			.or(false.into_sql::<diesel::sql_types::Bool>()),
-	));
+		if !other_tags.is_empty() {
+			names = names.filter(schema::names::tags.contains(other_tags));
+		}
 
-	println!("{:?}", diesel::debug_query(&result));
+		names
+	};
 
-	let result = result.load::<FormattedName>(connection).unwrap();
-	//.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
-	/*
-		let count = create_query()
-			.count()
-			.get_result::<i64>(connection)
-			.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+	let mut names = query()
+		.limit(data.limit.unwrap_or(10))
+		.offset(data.offset.unwrap_or(0))
+		.select((
+			schema::names::username,
+			schema::names::frequency,
+			schema::names::definition.nullable(),
+			schema::names::verified_at,
+			schema::names::updated_at,
+			schema::names::valid
+				.nullable()
+				.or(false.into_sql::<diesel::sql_types::Bool>()),
+			// TRUE if it is liked, FALSE otherwise -- default to FALSE if the value is NULL
+			schema::likes::username
+				.is_not_null()
+				.nullable()
+				.or(false.into_sql::<diesel::sql_types::Bool>()),
+		));
 
-		// debug query
-	*/
-	// return JSON response for ViewNamesResponse
-	Ok(HttpResponse::Ok().json(ViewNamesResponse {
-		names: result,
-		count: 0,
-	}))
+	let names = {
+		match (data.sort.as_deref(), data.column.as_deref()) {
+			(Some("asc"), Some("frequency")) => {
+				names = names.order(schema::names::frequency.asc());
+			}
+			(Some("asc"), Some("length")) => names = names.order(schema::names::length.asc()),
+			(_, Some("length")) => names = names.order(schema::names::length.desc()),
+			(Some("asc"), Some("updatedAt")) => {
+				names = names.order(schema::names::updated_at.asc())
+			}
+			(_, Some("updatedAt")) => names = names.order(schema::names::updated_at.desc()),
+			(Some("asc"), Some("verifiedAt")) => {
+				names = names.order(schema::names::verified_at.asc())
+			}
+			(_, Some("verifiedAt")) => names = names.order(schema::names::verified_at.desc()),
+			(Some("asc"), Some("username")) => names = names.order(schema::names::username.asc()),
+			(_, Some("username")) => names = names.order(schema::names::username.desc()),
+			_ => {}
+		}
+
+		if data.column.as_deref() != Some("frequency") && data.column.is_some() {
+			names = names.order(schema::names::frequency.desc());
+		}
+
+		names
+	};
+
+	let names = names
+		.load::<FormattedName>(connection)
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	let count = query()
+		.count()
+		.get_result::<i64>(connection)
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	Ok(HttpResponse::Ok().json(ViewNamesResponse { names, count }))
 }
 
 #[get("/names/{name}/like")]
-pub async fn like_name(name: web::Path<String>) -> impl Responder {
-	"Hello, world!"
+pub async fn like_name(
+	name: web::Path<String>,
+	req: HttpRequest,
+	pool: web::Data<PostgresPool>,
+) -> Result<HttpResponse, actix_web::Error> {
+	let token = req
+		.headers()
+		.get(header::AUTHORIZATION)
+		.ok_or(actix_web::error::ErrorUnauthorized(""))?
+		.to_str()
+		.map_err(|_| actix_web::error::ErrorUnauthorized(""))?;
+
+	let connection = &mut pool
+		.get()
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	let connection: &mut PgConnection = connection;
+
+	let user_id = schema::users::table
+		.select(schema::users::id)
+		.filter(schema::users::key.eq(token))
+		.get_result::<i32>(connection);
+
+	let user_id = match user_id {
+		Ok(user_id) => user_id,
+		Err(_) => return Err(actix_web::error::ErrorUnauthorized("")),
+	};
+
+	// insert into likes (username, user_id) values ($1, $2) on conflict do nothing
+	// get the user_id from the token in the same query
+
+	let result = diesel::insert_into(schema::likes::table)
+		.values((
+			schema::likes::username.eq(name.into_inner()),
+			schema::likes::user_id.eq(user_id),
+		))
+		.on_conflict_do_nothing()
+		.execute(connection)
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	Ok(HttpResponse::Ok().json(NameResponse {
+		updated: result > 0,
+	}))
 }
 
 #[get("/names/{name}/dislike")]
-pub async fn dislike_name(name: web::Path<String>) -> impl Responder {
-	"Hello, world!"
+pub async fn dislike_name(
+	name: web::Path<String>,
+	req: HttpRequest,
+	pool: web::Data<PostgresPool>,
+) -> Result<HttpResponse, actix_web::Error> {
+	let token = req
+		.headers()
+		.get(header::AUTHORIZATION)
+		.ok_or(actix_web::error::ErrorUnauthorized(""))?
+		.to_str()
+		.map_err(|_| actix_web::error::ErrorUnauthorized(""))?;
+
+	let connection = &mut pool
+		.get()
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	let connection: &mut PgConnection = connection;
+
+	let user_id = schema::users::table
+		.select(schema::users::id)
+		.filter(schema::users::key.eq(token))
+		.get_result::<i32>(connection);
+
+	let user_id = match user_id {
+		Ok(user_id) => user_id,
+		Err(_) => return Err(actix_web::error::ErrorUnauthorized("")),
+	};
+
+	let result = diesel::delete(schema::likes::table)
+		.filter(
+			schema::likes::username
+				.eq(name.into_inner())
+				.and(schema::likes::user_id.eq(user_id)),
+		)
+		.execute(connection)
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+	Ok(HttpResponse::Ok().json(NameResponse {
+		updated: result > 0,
+	}))
 }

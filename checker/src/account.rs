@@ -135,9 +135,9 @@ impl Account {
 
 		if response.status() == StatusCode::TOO_MANY_REQUESTS {
 			return Err(Error::Delay(tokio::time::Duration::from_secs(if first {
-				120
-			} else {
 				30
+			} else {
+				120
 			})));
 		}
 

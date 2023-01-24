@@ -96,7 +96,7 @@ impl Account {
 		}
 	}
 
-	pub async fn check(&mut self, name: &str) -> Result<bool, Error> {
+	pub async fn check(&mut self, name: &str, first: bool) -> Result<bool, Error> {
 		let java = if Self::is_token_valid(self.token.as_ref()) {
 			self.token.clone()
 		} else {
@@ -134,7 +134,11 @@ impl Account {
 		}
 
 		if response.status() == StatusCode::TOO_MANY_REQUESTS {
-			return Err(Error::Delay(tokio::time::Duration::from_secs(30)));
+			return Err(Error::Delay(tokio::time::Duration::from_secs(if first {
+				120
+			} else {
+				30
+			})));
 		}
 
 		if response.status() != StatusCode::OK {

@@ -74,8 +74,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						2 => connector.next_low().await,
 						_ => unreachable!(),
 					} {
+						let mut first = true;
 						let available = loop {
-							let result = account.check(&name).await;
+							let result = account.check(&name, first).await;
+
+							first = false;
 
 							match result {
 								Ok(available) => {

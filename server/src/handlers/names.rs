@@ -1,13 +1,11 @@
 use actix_web::{get, http::header, post, web, HttpRequest, HttpResponse};
-use database::schema;
+use database::{schema, PostgresPool};
 use diesel::prelude::*;
 use diesel::{
 	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, PgConnection, QueryDsl, Queryable,
 	RunQueryDsl, TextExpressionMethods,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::PostgresPool;
 
 #[derive(Deserialize)]
 pub struct ViewNamesOptions {

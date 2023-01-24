@@ -9,6 +9,7 @@ use account::Error;
 use connectors::prelude::{
 	Connector, HighPrioritySource, LowPrioritySource, MediumPrioritySource, Submit,
 };
+use database::get_pool;
 use once_cell::sync::Lazy;
 use reqwest::header;
 use serde::Serialize;
@@ -32,11 +33,13 @@ fn time() -> String {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	dotenv::dotenv().ok();
 
+	let pool = get_pool();
+
 	// use postgres connector
 	let (mut proxies, accounts) = {
-		let connector = connectors::sources::postgres::Postgres::prepare().await?;
-		let proxies = connector.get_proxies().await?.into_iter();
-		let accounts = connector.get_accounts().await?;
+		let connector = connectors::sources::postgres::Postgres::new(pool.clone());
+		let proxies = connector.get_proxies()?.into_iter();
+		let accounts = connector.get_accounts()?;
 
 		(proxies, accounts)
 	};
@@ -63,15 +66,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 		// spawn a new tokio task for each account
 		tasks.push(tokio::spawn({
-			let mut connector = connectors::sources::postgres::Postgres::prepare().await?;
-			let mut account = account.clone();
+			let mut connector = connectors::sources::postgres::Postgres::new(pool.clone());
 
 			async move {
 				'outer: loop {
 					while let Some(name) = match priority {
-						0 => connector.next_high().await,
-						1 => connector.next_medium().await,
-						2 => connector.next_low().await,
+						0 => connector.next_high(),
+						1 => connector.next_medium(),
+						2 => connector.next_low(),
 						_ => unreachable!(),
 					} {
 						let mut first = true;
@@ -135,10 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							}
 						};
 
-						let (updated, freq) = connector
-							.submit(&name, available)
-							.await
-							.unwrap_or((false, 0.));
+						let (updated, freq) =
+							connector.submit(&name, available).unwrap_or((false, 0.));
 
 						if updated && available {
 							HTTP.post("https://api.pushed.co/1/push")

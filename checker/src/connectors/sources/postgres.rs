@@ -1,179 +1,138 @@
+use database::{schema, PostgresPool};
+use diesel::{
+	dsl::sql, sql_types::Timestamptz, BoolExpressionMethods, ExpressionMethods, IntoSql, QueryDsl,
+	Queryable, RunQueryDsl,
+};
+
 use crate::{account::Account, connectors::prelude::*};
-
-const HIGH_PRIORITY_QUERY: &str = r#"
-	UPDATE "names" SET "updating" = TRUE
-		WHERE "username" IN (
-			SELECT "username" FROM "names"
-				WHERE "updating" = FALSE AND "frequency" >= 15
-				ORDER BY "verifiedAt" ASC, "frequency" DESC
-				LIMIT 100
-				FOR UPDATE
-		)
-	RETURNING "username"
-"#;
-
-const MEDIUM_PRIORITY_QUERY: &str = r#"
-	UPDATE "names" SET "updating" = TRUE
-		WHERE "username" IN (
-			SELECT "username" FROM "names"
-				WHERE "available" = TRUE AND "updating" = FALSE AND "frequency" >= 0.01 AND "frequency" < 20
-				ORDER BY "verifiedAt" ASC, "frequency" DESC
-				LIMIT 100
-				FOR UPDATE
-		)
-	RETURNING "username"
-"#;
-
-const LOW_PRIORITY_QUERY: &str = r#"
-	UPDATE "names" SET "updating" = TRUE
-		WHERE "username" IN (
-			SELECT "username" FROM "names"
-				WHERE "available" = TRUE AND "updating" = FALSE AND ("frequency" >= 0.001 OR array_length(definition, 1) > 0) AND "frequency" < 0.01
-				ORDER BY "verifiedAt" ASC, "frequency" DESC
-				LIMIT 100
-				FOR UPDATE
-		)
-	RETURNING "username"
-"#;
 
 pub struct Postgres {
 	high: Vec<String>,
 	medium: Vec<String>,
 	low: Vec<String>,
-	client: tokio_postgres::Client,
+	pool: PostgresPool,
 }
 
-impl Connector for Postgres {
-	async fn prepare() -> Result<Self, Box<dyn std::error::Error>>
-	where
-		Self: Sized,
-	{
-		let (client, connection) = tokio_postgres::connect(
-			&std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable not found"),
-			tokio_postgres::NoTls,
-		)
-		.await?;
+#[derive(Queryable)]
+pub struct AccountData {
+	username: String,
+	password: String,
+}
 
-		tokio::spawn(async move {
-			if let Err(e) = connection.await {
-				eprintln!("connection error: {e}");
-			}
-		});
+#[derive(Queryable)]
+pub struct ProxyData {
+	address: String,
+	port: i32,
+	username: Option<String>,
+	password: Option<String>,
+}
 
-		Ok(Self {
+impl Postgres {
+	pub fn new(pool: PostgresPool) -> Self {
+		Self {
 			high: Vec::new(),
 			medium: Vec::new(),
 			low: Vec::new(),
-			client,
-		})
+			pool,
+		}
 	}
+}
 
-	async fn get_accounts(&self) -> Result<Vec<Account>, Box<dyn std::error::Error>> {
-		let rows = self
-			.client
-			.query(
-				r#"
-				SELECT username, password
-					FROM accounts
-					ORDER BY username
-			"#,
-				&[],
-			)
-			.await?;
+impl Connector for Postgres {
+	fn get_accounts(&self) -> Result<Vec<Account>, Box<dyn std::error::Error>> {
+		let accounts = schema::accounts::table
+			.select((schema::accounts::username, schema::accounts::password))
+			.load::<AccountData>(&mut self.pool.get()?)?;
 
-		Ok(rows
+		Ok(accounts
 			.into_iter()
 			.map(|row| {
 				// we can leak these strings because they will live for the duration of the program
-				Account::new(row.get::<_, String>(0), row.get::<_, String>(1))
+				Account::new(row.username, row.password)
 			})
 			.collect())
 	}
 
-	async fn get_proxies(&self) -> Result<Vec<reqwest::Proxy>, Box<dyn std::error::Error>> {
-		let rows = self
-			.client
-			.query(
-				r#"
-				SELECT address, port, username, password
-					FROM proxies
-					ORDER BY address
-			"#,
-				&[],
-			)
-			.await?;
+	fn get_proxies(&self) -> Result<Vec<reqwest::Proxy>, Box<dyn std::error::Error>> {
+		let proxies = schema::proxies::table
+			.select((
+				schema::proxies::address,
+				schema::proxies::port,
+				schema::proxies::username,
+				schema::proxies::password,
+			))
+			.load::<ProxyData>(&mut self.pool.get()?)?;
 
-		Ok(rows
+		Ok(proxies
 			.into_iter()
 			.filter_map(|row| {
 				// we can leak these strings because they will live for the duration of the program
-				Some(
-					reqwest::Proxy::https(format!(
-						"{}:{}",
-						/* host */ row.get::<_, String>(0),
-						/* port */ row.get::<_, i32>(1)
-					))
-					.ok()?
-					.basic_auth(
-						/* username */ row.get(2),
-						/* password */ row.get(3),
+				match (row.username, row.password) {
+					(Some(username), Some(password)) => Some(
+						reqwest::Proxy::https(format!("{}:{}", row.address, row.port,))
+							.ok()?
+							.basic_auth(&username, &password),
 					),
-				)
+					_ => reqwest::Proxy::https(format!("{}:{}", row.address, row.port,)).ok(),
+				}
 			})
 			.collect())
 	}
 }
 
 impl Submit for Postgres {
-	async fn submit(
+	fn submit(
 		&self,
 		username: &str,
 		available: bool,
 	) -> Result<(bool, f64), Box<dyn std::error::Error>> {
-		let row = self
-			.client
-			.query_one(
-				if available {
-					r#"
-						UPDATE "names" SET
-							"verifiedAt" = NOW(),
-							"updatedAt" = (CASE WHEN ("valid" IS NULL OR "valid" = FALSE) THEN NOW() ELSE "updatedAt" END),
-							"valid" = TRUE,
-							"updating" = FALSE
-						WHERE username = $1
-						RETURNING "frequency", "valid" IS NULL OR "valid" = FALSE AS "changed"
-					"#
-				} else {
-					r#"
-						UPDATE "names" SET
-							"verifiedAt" = NOW(),
-							"updatedAt" = (CASE WHEN ("valid" IS NULL OR "valid" = TRUE) THEN NOW() ELSE "updatedAt" END),
-							"valid" = FALSE,
-							"available" = FALSE,
-							"updating" = FALSE
-						WHERE username = $1
-						RETURNING "frequency", FALSE AS "changed"
-					"#
-				},
-				&[&username],
-			)
-			.await?;
+		let conditional_update = sql::<Timestamptz>(&format!(
+			"CASE WHEN (\"valid\" IS NULL OR \"valid\" = {}) THEN NOW() ELSE \"updatedAt\" END",
+			!available
+		))
+		.into_sql();
 
-		Ok((row.get(1), row.get(0)))
+		let row = diesel::update(schema::names::table)
+			.filter(schema::names::username.eq(username))
+			.set((
+				schema::names::verified_at.eq(diesel::dsl::now),
+				schema::names::updated_at.eq(conditional_update),
+				schema::names::valid.eq(available),
+				schema::names::available.eq(available),
+				schema::names::updating.eq(false),
+			))
+			.returning((
+				schema::names::frequency,
+				schema::names::valid
+					.eq(!available)
+					.or(schema::names::valid.is_null()),
+			))
+			.get_result::<(f64, Option<bool>)>(&mut self.pool.get()?)?;
+
+		Ok((row.1 != Some(false), row.0))
 	}
 }
 
 impl HighPrioritySource for Postgres {
-	async fn next_high(&mut self) -> Option<String> {
+	fn next_high(&mut self) -> Option<String> {
 		if self.high.is_empty() {
-			self.high = self
-				.client
-				.query(HIGH_PRIORITY_QUERY, &[])
-				.await
-				.ok()?
-				.into_iter()
-				.map(|row| row.get::<_, String>(0))
-				.collect();
+			let usernames = schema::names::table
+				.filter(schema::names::updating.eq(false))
+				.filter(schema::names::frequency.ge(15.))
+				.order((
+					schema::names::verified_at.asc(),
+					schema::names::frequency.desc(),
+				))
+				.limit(100)
+				.select(schema::names::username)
+				.into_boxed();
+
+			self.high = diesel::update(schema::names::table)
+				.filter(schema::names::username.eq_any(usernames))
+				.set(schema::names::updating.eq(true))
+				.returning(schema::names::username)
+				.get_results::<String>(&mut self.pool.get().ok()?)
+				.ok()?;
 		}
 
 		self.high.pop()
@@ -181,16 +140,27 @@ impl HighPrioritySource for Postgres {
 }
 
 impl MediumPrioritySource for Postgres {
-	async fn next_medium(&mut self) -> Option<String> {
+	fn next_medium(&mut self) -> Option<String> {
 		if self.medium.is_empty() {
-			self.medium = self
-				.client
-				.query(MEDIUM_PRIORITY_QUERY, &[])
-				.await
-				.ok()?
-				.into_iter()
-				.map(|row| row.get::<_, String>(0))
-				.collect();
+			let usernames = schema::names::table
+				.filter(schema::names::updating.eq(false))
+				.filter(schema::names::frequency.ge(0.01))
+				.filter(schema::names::frequency.lt(15.))
+				.filter(schema::names::available.eq(true))
+				.order((
+					schema::names::verified_at.asc(),
+					schema::names::frequency.desc(),
+				))
+				.limit(100)
+				.select(schema::names::username)
+				.into_boxed();
+
+			self.medium = diesel::update(schema::names::table)
+				.filter(schema::names::username.eq_any(usernames))
+				.set(schema::names::updating.eq(true))
+				.returning(schema::names::username)
+				.get_results::<String>(&mut self.pool.get().ok()?)
+				.ok()?;
 		}
 
 		self.medium.pop()
@@ -198,16 +168,31 @@ impl MediumPrioritySource for Postgres {
 }
 
 impl LowPrioritySource for Postgres {
-	async fn next_low(&mut self) -> Option<String> {
+	fn next_low(&mut self) -> Option<String> {
 		if self.low.is_empty() {
-			self.low = self
-				.client
-				.query(LOW_PRIORITY_QUERY, &[])
-				.await
-				.ok()?
-				.into_iter()
-				.map(|row| row.get::<_, String>(0))
-				.collect();
+			let usernames = schema::names::table
+				.filter(schema::names::updating.eq(false))
+				.filter(schema::names::available.eq(true))
+				.filter(schema::names::frequency.lt(0.01))
+				.filter(
+					schema::names::frequency
+						.ge(0.001)
+						.or(schema::names::definition.is_not_null()),
+				)
+				.order((
+					schema::names::verified_at.asc(),
+					schema::names::frequency.desc(),
+				))
+				.limit(100)
+				.select(schema::names::username)
+				.into_boxed();
+
+			self.low = diesel::update(schema::names::table)
+				.filter(schema::names::username.eq_any(usernames))
+				.set(schema::names::updating.eq(true))
+				.returning(schema::names::username)
+				.get_results::<String>(&mut self.pool.get().ok()?)
+				.ok()?;
 		}
 
 		self.low.pop()

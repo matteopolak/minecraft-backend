@@ -2,13 +2,7 @@ mod handlers;
 
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpServer};
-use diesel::{
-	r2d2::{ConnectionManager, Pool},
-	PgConnection,
-};
 use dotenv::dotenv;
-
-pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

@@ -14,3 +14,5 @@ pub fn get_pool() -> Pool<ConnectionManager<PgConnection>> {
 		.build(manager)
 		.expect("failed to create connection pool")
 }
+
+pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;

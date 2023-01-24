@@ -1,5 +1,6 @@
 mod handlers;
 
+use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use diesel::{
 	r2d2::{ConnectionManager, Pool},
@@ -16,7 +17,10 @@ async fn main() -> std::io::Result<()> {
 	let pool = database::get_pool();
 
 	HttpServer::new(move || {
+		let cors = Cors::default().allow_any_origin().allow_any_header();
+
 		App::new()
+			.wrap(cors)
 			.app_data(web::Data::new(pool.clone()))
 			.service(handlers::names::view_names)
 			.service(handlers::names::like_name)

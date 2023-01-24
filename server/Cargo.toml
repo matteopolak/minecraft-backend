@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+actix-cors = "0.6.4"
 actix-web = "4.3.0"
 chrono = { version = "0.4.23", features = ["serde"] }
 database = { path = "../database" }

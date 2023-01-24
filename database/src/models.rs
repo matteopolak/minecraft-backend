@@ -14,7 +14,7 @@ pub struct Name {
 	pub frequency: f32,
 	pub length: i32,
 	pub updating: bool,
-	pub tags: Vec<String>,
+	pub tags: Option<Vec<String>>,
 }
 
 #[derive(Queryable)]

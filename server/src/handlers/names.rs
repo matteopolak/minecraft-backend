@@ -22,10 +22,12 @@ pub struct ViewNamesOptions {
 }
 
 #[derive(Queryable, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FormattedName {
 	pub username: String,
 	pub frequency: f64,
 	pub definition: Option<Vec<String>>,
+	pub tags: Option<Vec<String>>,
 	pub verified_at: chrono::NaiveDateTime,
 	pub updated_at: chrono::NaiveDateTime,
 	pub valid: Option<bool>,
@@ -34,8 +36,8 @@ pub struct FormattedName {
 
 #[derive(Serialize)]
 pub struct ViewNamesResponse {
-	pub names: Vec<FormattedName>,
-	pub count: i64,
+	pub data: Vec<FormattedName>,
+	pub total: i64,
 }
 
 #[derive(Serialize)]
@@ -150,6 +152,7 @@ pub async fn view_names(
 			schema::names::username,
 			schema::names::frequency,
 			schema::names::definition.nullable(),
+			schema::names::tags.nullable(),
 			schema::names::verified_at,
 			schema::names::updated_at,
 			schema::names::valid
@@ -167,23 +170,52 @@ pub async fn view_names(
 			(Some("asc"), Some("frequency")) => {
 				names = names.order(schema::names::frequency.asc());
 			}
-			(Some("asc"), Some("length")) => names = names.order(schema::names::length.asc()),
-			(_, Some("length")) => names = names.order(schema::names::length.desc()),
+			(Some("asc"), Some("length")) => {
+				names = names.order((schema::names::length.asc(), schema::names::frequency.desc()))
+			}
+			(_, Some("length")) => {
+				names = names.order((
+					schema::names::length.desc(),
+					schema::names::frequency.desc(),
+				))
+			}
 			(Some("asc"), Some("updatedAt")) => {
-				names = names.order(schema::names::updated_at.asc())
+				names = names.order((
+					schema::names::updated_at.asc(),
+					schema::names::frequency.desc(),
+				))
 			}
-			(_, Some("updatedAt")) => names = names.order(schema::names::updated_at.desc()),
+			(_, Some("updatedAt")) => {
+				names = names.order((
+					schema::names::updated_at.desc(),
+					schema::names::frequency.desc(),
+				))
+			}
 			(Some("asc"), Some("verifiedAt")) => {
-				names = names.order(schema::names::verified_at.asc())
+				names = names.order((
+					schema::names::verified_at.asc(),
+					schema::names::frequency.desc(),
+				))
 			}
-			(_, Some("verifiedAt")) => names = names.order(schema::names::verified_at.desc()),
-			(Some("asc"), Some("username")) => names = names.order(schema::names::username.asc()),
-			(_, Some("username")) => names = names.order(schema::names::username.desc()),
-			_ => {}
-		}
-
-		if data.column.as_deref() != Some("frequency") && data.column.is_some() {
-			names = names.order(schema::names::frequency.desc());
+			(_, Some("verifiedAt")) => {
+				names = names.order((
+					schema::names::verified_at.desc(),
+					schema::names::frequency.desc(),
+				))
+			}
+			(Some("asc"), Some("username")) => {
+				names = names.order((
+					schema::names::username.asc(),
+					schema::names::frequency.desc(),
+				))
+			}
+			(_, Some("username")) => {
+				names = names.order((
+					schema::names::username.desc(),
+					schema::names::frequency.desc(),
+				))
+			}
+			_ => names = names.order(schema::names::frequency.desc()),
 		}
 
 		names
@@ -198,7 +230,10 @@ pub async fn view_names(
 		.get_result::<i64>(connection)
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
-	Ok(HttpResponse::Ok().json(ViewNamesResponse { names, count }))
+	Ok(HttpResponse::Ok().json(ViewNamesResponse {
+		data: names,
+		total: count,
+	}))
 }
 
 #[get("/names/{name}/like")]

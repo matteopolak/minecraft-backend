@@ -18,7 +18,7 @@ table! {
 		frequency -> Float8,
 		length -> Integer,
 		updating -> Bool,
-		tags -> Array<Text>,
+		tags -> Nullable<Array<Text>>,
 	}
 }
 

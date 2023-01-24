@@ -19,7 +19,8 @@ async fn main() -> std::io::Result<()> {
 	HttpServer::new(move || {
 		let cors = Cors::default()
 			.allow_any_origin()
-			.allowed_header(header::AUTHORIZATION)
+			.allow_any_method()
+			.allowed_headers(vec![header::AUTHORIZATION, header::CONTENT_TYPE])
 			.send_wildcard();
 
 		App::new()

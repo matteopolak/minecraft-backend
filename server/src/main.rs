@@ -1,7 +1,7 @@
 mod handlers;
 
 use actix_cors::Cors;
-use actix_web::{web, App, HttpServer};
+use actix_web::{http::header, web, App, HttpServer};
 use diesel::{
 	r2d2::{ConnectionManager, Pool},
 	PgConnection,
@@ -17,7 +17,10 @@ async fn main() -> std::io::Result<()> {
 	let pool = database::get_pool();
 
 	HttpServer::new(move || {
-		let cors = Cors::default().allow_any_origin().allow_any_header();
+		let cors = Cors::default()
+			.allow_any_origin()
+			.allowed_header(header::AUTHORIZATION)
+			.send_wildcard();
 
 		App::new()
 			.wrap(cors)

@@ -3,18 +3,16 @@ use diesel::prelude::Queryable;
 #[derive(Queryable)]
 pub struct Name {
 	pub username: String,
-	pub popularity: f64,
-	pub available: bool,
 	pub created_at: chrono::DateTime<chrono::Utc>,
 	pub updated_at: chrono::DateTime<chrono::Utc>,
 	pub checked_at: chrono::DateTime<chrono::Utc>,
-	pub valid: Option<bool>,
 	pub verified_at: chrono::DateTime<chrono::Utc>,
 	pub definition: Option<Vec<String>>,
 	pub frequency: f32,
 	pub length: i32,
 	pub updating: bool,
 	pub tags: Option<Vec<String>>,
+	pub status: i16,
 }
 
 #[derive(Queryable)]

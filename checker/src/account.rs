@@ -1,6 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use api::{microsoft::JavaData, xbox::Credentials};
+use database::Status;
 use once_cell::sync::Lazy;
 use reqwest::{Client, Proxy, StatusCode};
 use serde::Deserialize;
@@ -101,7 +102,7 @@ impl Account {
 		}
 	}
 
-	pub async fn check(&mut self, name: &str, first: bool) -> Result<bool, Error> {
+	pub async fn check(&mut self, name: &str, first: bool) -> Result<Status, Error> {
 		let java = if Self::is_token_valid(self.token.as_ref()) {
 			self.token.clone()
 		} else {
@@ -150,10 +151,13 @@ impl Account {
 			return Err(Error::Request);
 		}
 
-		Ok(response
-			.json::<MinecraftResponse>()
-			.await
-			.map_err(|_| Error::Deserialization)?
-			.status == "AVAILABLE")
+		Status::from_str(
+			&response
+				.json::<MinecraftResponse>()
+				.await
+				.map_err(|_| Error::Deserialization)?
+				.status,
+		)
+		.map_err(|_| Error::Deserialization)
 	}
 }

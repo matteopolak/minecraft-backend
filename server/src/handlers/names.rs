@@ -1,9 +1,9 @@
 use actix_web::{get, http::header, post, web, HttpRequest, HttpResponse};
-use database::{schema, PostgresPool};
+use database::{schema, PostgresPool, Status};
 use diesel::prelude::*;
 use diesel::{
-	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, PgConnection, QueryDsl, Queryable,
-	RunQueryDsl, TextExpressionMethods,
+	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl, Queryable, RunQueryDsl,
+	TextExpressionMethods,
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ pub struct FormattedName {
 	pub tags: Option<Vec<String>>,
 	pub verified_at: chrono::DateTime<chrono::Utc>,
 	pub updated_at: chrono::DateTime<chrono::Utc>,
-	pub valid: Option<bool>,
+	pub status: i16,
 	pub liked: Option<bool>,
 }
 
@@ -103,12 +103,6 @@ pub async fn view_names(
 			names = names.filter(schema::names::updated_at.le(to));
 		}
 
-		// 'common' is a tag, filter for frequency >= 0.5
-		// 'short' is a tag, filter for length <= 7
-		// 'liked' is a tag, filter for liked = true
-		// 'taken' is a tag, filter for valid = false
-		// 'name' is a tag, filter for 'name' IN tags
-
 		let mut other_tags = Vec::new();
 		let mut has_taken_tag = false;
 
@@ -121,7 +115,7 @@ pub async fn view_names(
 						names = names.filter(schema::likes::username.is_not_null());
 					}
 					"taken" => {
-						names = names.filter(schema::names::valid.is_not_null());
+						names = names.filter(schema::names::status.ne(i16::from(Status::Unknown)));
 						has_taken_tag = true;
 					}
 					"name" => names = names.filter(schema::names::tags.contains(vec!["name"])),
@@ -131,7 +125,7 @@ pub async fn view_names(
 		}
 
 		if !has_taken_tag {
-			names = names.filter(schema::names::valid.eq(true));
+			names = names.filter(schema::names::status.eq(i16::from(Status::Available)));
 		}
 
 		if !other_tags.is_empty() {
@@ -151,9 +145,7 @@ pub async fn view_names(
 			schema::names::tags.nullable(),
 			schema::names::verified_at,
 			schema::names::updated_at,
-			schema::names::valid
-				.nullable()
-				.or(false.into_sql::<diesel::sql_types::Bool>()),
+			schema::names::status,
 			// TRUE if it is liked, FALSE otherwise -- default to FALSE if the value is NULL
 			schema::likes::username
 				.is_not_null()
@@ -219,12 +211,12 @@ pub async fn view_names(
 
 	let names = names
 		.load::<FormattedName>(connection)
-		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""));
 
 	let count = query()
 		.count()
 		.get_result::<i64>(connection)
-		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""));
 
 	Ok(HttpResponse::Ok().json(ViewNamesResponse {
 		data: names,

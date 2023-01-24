@@ -4,14 +4,12 @@ table! {
 	names (username) {
 		username -> Text,
 		popularity -> Float8,
-		available -> Bool,
 		#[sql_name = "createdAt"]
 		created_at -> Timestamptz,
 		#[sql_name = "updatedAt"]
 		updated_at -> Timestamptz,
 		#[sql_name = "checkedAt"]
 		checked_at -> Timestamptz,
-		valid -> Nullable<Bool>,
 		#[sql_name = "verifiedAt"]
 		verified_at -> Timestamptz,
 		definition -> Nullable<Array<Text>>,
@@ -19,6 +17,7 @@ table! {
 		length -> Integer,
 		updating -> Bool,
 		tags -> Nullable<Array<Text>>,
+		status -> SmallInt,
 	}
 }
 

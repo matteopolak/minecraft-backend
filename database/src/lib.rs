@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use diesel::{
 	r2d2::{ConnectionManager, Pool},
 	PgConnection,
@@ -16,3 +18,47 @@ pub fn get_pool() -> PostgresPool {
 }
 
 pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
+
+#[derive(PartialEq)]
+pub enum Status {
+	Unknown,
+	Available,
+	Taken,
+	Banned,
+}
+
+impl From<i16> for Status {
+	fn from(status: i16) -> Self {
+		match status {
+			0 => Status::Unknown,
+			1 => Status::Available,
+			2 => Status::Taken,
+			3 => Status::Banned,
+			_ => Status::Unknown,
+		}
+	}
+}
+
+impl From<Status> for i16 {
+	fn from(status: Status) -> Self {
+		match status {
+			Status::Unknown => 0,
+			Status::Available => 1,
+			Status::Taken => 2,
+			Status::Banned => 3,
+		}
+	}
+}
+
+impl FromStr for Status {
+	type Err = ();
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"AVAILABLE" => Ok(Self::Available),
+			"DUPLICATE" => Ok(Self::Taken),
+			"NOT_ALLOWED" => Ok(Self::Banned),
+			_ => Ok(Self::Unknown),
+		}
+	}
+}

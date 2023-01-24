@@ -9,7 +9,7 @@ use account::Error;
 use connectors::prelude::{
 	Connector, HighPrioritySource, LowPrioritySource, MediumPrioritySource, Submit,
 };
-use database::get_pool;
+use database::{get_pool, Status};
 use once_cell::sync::Lazy;
 use reqwest::header;
 use serde::Serialize;
@@ -81,25 +81,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						_ => unreachable!(),
 					} {
 						let mut first = true;
-						let available = loop {
-							let result = account.check(&name, first).await;
+						let status = loop {
+							let status = account.check(&name, first).await;
 
 							first = false;
 
-							match result {
-								Ok(available) => {
+							match status {
+								Ok(status) => {
 									println!(
 										"[{}] {} is {}",
 										time(),
 										name,
-										if available {
-											"available"
-										} else {
-											"unavailable"
+										match status {
+											Status::Unknown => "unknown",
+											Status::Available => "available",
+											Status::Taken => "unavailable",
+											Status::Banned => "banned",
 										}
 									);
 
-									break available;
+									break status;
 								}
 								Err(Error::Delay(duration)) => {
 									println!(
@@ -141,10 +142,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							}
 						};
 
+						let is_available = status == Status::Available;
 						let (updated, freq) =
-							connector.submit(&name, available).unwrap_or((false, 0.));
+							connector.submit(&name, status).unwrap_or((false, 0.));
 
-						if updated && available {
+						if updated && is_available {
 							HTTP.post("https://api.pushed.co/1/push")
 								.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
 								.form(&PushedPayload {

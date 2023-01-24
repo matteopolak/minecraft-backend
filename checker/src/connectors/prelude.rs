@@ -1,8 +1,10 @@
+use database::Status;
+
 pub trait Submit {
 	fn submit(
 		&self,
 		username: &str,
-		available: bool,
+		status: Status,
 	) -> Result<(bool, f64), Box<dyn std::error::Error>>;
 }
 

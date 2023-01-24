@@ -1,4 +1,4 @@
-use database::{schema, PostgresPool};
+use database::{schema, PostgresPool, Status};
 use diesel::{
 	dsl::sql, sql_types::Timestamptz, BoolExpressionMethods, ExpressionMethods, IntoSql, QueryDsl,
 	Queryable, RunQueryDsl,
@@ -92,11 +92,11 @@ impl Submit for Postgres {
 	fn submit(
 		&self,
 		username: &str,
-		available: bool,
+		status: Status,
 	) -> Result<(bool, f64), Box<dyn std::error::Error>> {
+		let status: i16 = status.into();
 		let conditional_update = sql::<Timestamptz>(&format!(
-			"CASE WHEN (\"valid\" IS NULL OR \"valid\" = {}) THEN NOW() ELSE \"updatedAt\" END",
-			!available
+			"CASE WHEN \"status\" != '{status}' THEN NOW() ELSE \"updatedAt\" END",
 		))
 		.into_sql();
 
@@ -105,19 +105,13 @@ impl Submit for Postgres {
 			.set((
 				schema::names::verified_at.eq(diesel::dsl::now),
 				schema::names::updated_at.eq(conditional_update),
-				schema::names::valid.eq(available),
-				schema::names::available.eq(available),
 				schema::names::updating.eq(false),
+				schema::names::status.eq(status),
 			))
-			.returning((
-				schema::names::frequency,
-				schema::names::valid
-					.eq(!available)
-					.or(schema::names::valid.is_null()),
-			))
-			.get_result::<(f64, Option<bool>)>(&mut self.pool.get()?)?;
+			.returning((schema::names::frequency, schema::names::status.ne(status)))
+			.get_result::<(f64, bool)>(&mut self.pool.get()?)?;
 
-		Ok((row.1 != Some(false), row.0))
+		Ok((row.1, row.0))
 	}
 }
 
@@ -141,6 +135,8 @@ impl HighPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
+
+			println!("high: {}", self.high.len());
 		}
 
 		self.high.pop()
@@ -154,7 +150,7 @@ impl MediumPrioritySource for Postgres {
 				.filter(schema::names::updating.eq(false))
 				.filter(schema::names::frequency.ge(0.01))
 				.filter(schema::names::frequency.lt(15.))
-				.filter(schema::names::available.eq(true))
+				.filter(schema::names::status.ne(i16::from(Status::Unknown)))
 				.order((
 					schema::names::verified_at.asc(),
 					schema::names::frequency.desc(),
@@ -169,6 +165,8 @@ impl MediumPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
+
+			println!("medium: {}", self.medium.len());
 		}
 
 		self.medium.pop()
@@ -180,7 +178,7 @@ impl LowPrioritySource for Postgres {
 		if self.low.is_empty() {
 			let usernames = schema::names::table
 				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::available.eq(true))
+				.filter(schema::names::status.ne(i16::from(Status::Unknown)))
 				.filter(schema::names::frequency.lt(0.01))
 				.filter(
 					schema::names::frequency
@@ -201,6 +199,8 @@ impl LowPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
+
+			println!("low: {}", self.low.len());
 		}
 
 		self.low.pop()

@@ -1,4 +1,7 @@
+use std::{path::PathBuf, str::FromStr};
+
 use api::{microsoft::JavaData, xbox::Credentials};
+use once_cell::sync::Lazy;
 use reqwest::{Client, Proxy, StatusCode};
 use serde::Deserialize;
 
@@ -20,6 +23,8 @@ pub enum Error {
 	Retry,
 	Delay(tokio::time::Duration),
 }
+
+static CACHE_DIR: Lazy<PathBuf> = Lazy::new(|| PathBuf::from_str("cache").unwrap());
 
 #[derive(Deserialize)]
 pub struct MinecraftResponse {
@@ -84,7 +89,7 @@ impl Account {
 			return Err(Error::NoClient);
 		};
 
-		api::microsoft::get_java_token(client, credentials)
+		api::microsoft::get_java_token(client, credentials, Some(CACHE_DIR.as_path()))
 			.await
 			.map_err(|_| Error::Token)
 	}

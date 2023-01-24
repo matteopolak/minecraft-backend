@@ -1,3 +1,5 @@
+use std::{fs::File, io::BufReader, path::Path, str::FromStr};
+
 use reqwest::{
 	header::{self, HeaderMap},
 	Client,
@@ -79,12 +81,12 @@ pub struct XstsXui {
 	xid: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct XstsData {
 	pub xid: Option<String>,
 	pub hash: String,
 	pub token: String,
-	pub expires_on: String,
+	pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug)]
@@ -93,6 +95,7 @@ pub enum Error {
 	RequestError,
 	SerializationError,
 	DeserializationError,
+	CacheError,
 }
 
 #[derive(Serialize, Debug)]
@@ -333,7 +336,29 @@ pub async fn exchange_rps_ticket_for_token(
 /// # Errors
 /// - `Error::RequestError` if the request fails
 /// - `Error::DeserializationError` if the response cannot be deserialized
-pub async fn get_xsts_token(client: &Client, credentials: &Credentials) -> Result<XstsData, Error> {
+pub async fn get_xsts_token(
+	client: &Client,
+	credentials: &Credentials,
+	cache: Option<&Path>,
+) -> Result<XstsData, Error> {
+	if let Some((cache, true)) = cache.map(|cache| (cache, cache.is_dir())) {
+		let mut cache = cache.to_path_buf();
+		cache.push(&credentials.username);
+		cache.push("xsts.json");
+
+		if cache.is_file() {
+			let file = File::open(cache).map_err(|_| Error::CacheError)?;
+			let reader = BufReader::new(file);
+
+			let data = serde_json::from_reader::<_, XstsData>(reader)
+				.map_err(|_| Error::DeserializationError)?;
+
+			if data.expires_at > chrono::Utc::now() {
+				return Ok(data);
+			}
+		}
+	}
+
 	let pre_auth = pre_auth(client).await?;
 	let log_user = log_user(client, &pre_auth, credentials).await?;
 	let rps_ticket = exchange_rps_ticket_for_token(client, &log_user).await?;
@@ -378,10 +403,28 @@ pub async fn get_xsts_token(client: &Client, credentials: &Credentials) -> Resul
 		.await
 		.map_err(|_| Error::DeserializationError)?;
 
-	Ok(XstsData {
+	let data = XstsData {
 		token: response.token,
-		expires_on: response.not_after,
+		expires_at: chrono::DateTime::<chrono::Utc>::from_str(&response.not_after)
+			.map_err(|_| Error::DeserializationError)?,
 		xid: response.display_claims.xui[0].xid.clone(),
 		hash: response.display_claims.xui[0].uhs.clone(),
-	})
+	};
+
+	if let Some(cache) = cache {
+		let mut cache = cache.to_path_buf();
+		cache.push(&credentials.username);
+
+		if !cache.is_dir() {
+			std::fs::create_dir_all(&cache).map_err(|_| Error::CacheError)?;
+		}
+
+		cache.push("xsts.json");
+
+		let file = File::create(cache).map_err(|_| Error::CacheError)?;
+
+		serde_json::to_writer(file, &data).map_err(|_| Error::SerializationError)?;
+	}
+
+	Ok(data)
 }

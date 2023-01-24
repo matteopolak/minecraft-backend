@@ -6,7 +6,7 @@ use diesel::{
 pub mod models;
 pub mod schema;
 
-pub fn get_pool() -> Pool<ConnectionManager<PgConnection>> {
+pub fn get_pool() -> PostgresPool {
 	let url = std::env::var("DATABASE_URL").expect("environment variable DATABASE_URL not found");
 	let manager = ConnectionManager::<PgConnection>::new(url);
 

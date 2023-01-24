@@ -21,6 +21,7 @@ pub trait LowPrioritySource {
 pub trait Connector:
 	HighPrioritySource + MediumPrioritySource + LowPrioritySource + Submit
 {
+	fn reset(&self) -> Result<(), Box<dyn std::error::Error>>;
 	fn get_accounts(&self) -> Result<Vec<crate::account::Account>, Box<dyn std::error::Error>>;
 	fn get_proxies(&self) -> Result<Vec<reqwest::Proxy>, Box<dyn std::error::Error>>;
 }

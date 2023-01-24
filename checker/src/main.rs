@@ -38,6 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// use postgres connector
 	let (mut proxies, accounts) = {
 		let connector = connectors::sources::postgres::Postgres::new(pool.clone());
+
+		// reset the status of all accounts
+		connector.reset()?;
+
 		let proxies = connector.get_proxies()?.into_iter();
 		let accounts = connector.get_accounts()?;
 

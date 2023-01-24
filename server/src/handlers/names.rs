@@ -57,17 +57,15 @@ pub async fn view_names(
 		.to_str()
 		.map_err(|_| actix_web::error::ErrorUnauthorized(""))?;
 
-	let connection = &mut pool
-		.get()
-		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
-
-	let connection: &mut PgConnection = connection;
-
 	// get the user from the database, or return a 401 if the token is invalid
 	let user_id = schema::users::table
 		.select(schema::users::id)
 		.filter(schema::users::key.eq(token))
-		.get_result::<i32>(connection);
+		.get_result::<i32>(
+			&mut pool
+				.get()
+				.map_err(|_| actix_web::error::ErrorInternalServerError(""))?,
+		);
 
 	let user_id = match user_id {
 		Ok(user_id) => user_id,
@@ -220,12 +218,20 @@ pub async fn view_names(
 	};
 
 	let names = names
-		.load::<FormattedName>(connection)
+		.load::<FormattedName>(
+			&mut pool
+				.get()
+				.map_err(|_| actix_web::error::ErrorInternalServerError(""))?,
+		)
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	let count = query()
 		.count()
-		.get_result::<i64>(connection)
+		.get_result::<i64>(
+			&mut pool
+				.get()
+				.map_err(|_| actix_web::error::ErrorInternalServerError(""))?,
+		)
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	Ok(HttpResponse::Ok().json(ViewNamesResponse {

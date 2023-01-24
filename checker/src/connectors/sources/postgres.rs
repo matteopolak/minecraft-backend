@@ -39,6 +39,14 @@ impl Postgres {
 }
 
 impl Connector for Postgres {
+	fn reset(&self) -> Result<(), Box<dyn std::error::Error>> {
+		diesel::update(schema::names::table)
+			.set(schema::names::updating.eq(false))
+			.execute(&mut self.pool.get()?)?;
+
+		Ok(())
+	}
+
 	fn get_accounts(&self) -> Result<Vec<Account>, Box<dyn std::error::Error>> {
 		let accounts = schema::accounts::table
 			.select((schema::accounts::username, schema::accounts::password))

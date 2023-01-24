@@ -28,8 +28,8 @@ pub struct FormattedName {
 	pub frequency: f64,
 	pub definition: Option<Vec<String>>,
 	pub tags: Option<Vec<String>>,
-	pub verified_at: chrono::NaiveDateTime,
-	pub updated_at: chrono::NaiveDateTime,
+	pub verified_at: chrono::DateTime<chrono::Utc>,
+	pub updated_at: chrono::DateTime<chrono::Utc>,
 	pub valid: Option<bool>,
 	pub liked: Option<bool>,
 }

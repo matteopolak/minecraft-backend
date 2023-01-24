@@ -6,14 +6,14 @@ table! {
 		popularity -> Float8,
 		available -> Bool,
 		#[sql_name = "createdAt"]
-		created_at -> Timestamp,
+		created_at -> Timestamptz,
 		#[sql_name = "updatedAt"]
-		updated_at -> Timestamp,
+		updated_at -> Timestamptz,
 		#[sql_name = "checkedAt"]
-		checked_at -> Timestamp,
+		checked_at -> Timestamptz,
 		valid -> Nullable<Bool>,
 		#[sql_name = "verifiedAt"]
-		verified_at -> Timestamp,
+		verified_at -> Timestamptz,
 		definition -> Nullable<Array<Text>>,
 		frequency -> Float8,
 		length -> Integer,

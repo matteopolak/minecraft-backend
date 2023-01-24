@@ -109,6 +109,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 									break 'outer;
 								}
+								Err(Error::Token) => {
+									let seconds = 120;
+
+									println!(
+										"[{}] {} could not get token, waiting {} seconds",
+										time(),
+										name,
+										seconds
+									);
+
+									tokio::time::sleep(tokio::time::Duration::from_secs(seconds))
+										.await;
+
+									continue;
+								}
 								Err(e) => {
 									println!("[{}] {} is invalid: {:?}", time(), name, e);
 

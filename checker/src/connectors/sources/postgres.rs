@@ -146,9 +146,12 @@ impl MediumPrioritySource for Postgres {
 		if self.medium.is_empty() {
 			let usernames = schema::names::table
 				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::frequency.ge(0.01))
-				.filter(schema::names::frequency.lt(15.))
-				.filter(schema::names::status.ne(i16::from(Status::Unknown)))
+				.filter(
+					schema::names::frequency
+						.ge(0.01)
+						.and(schema::names::frequency.lt(15.)),
+				)
+				.filter(schema::names::status.ne(i16::from(Status::Taken)))
 				.order((
 					schema::names::verified_at.asc(),
 					schema::names::frequency.desc(),
@@ -174,12 +177,13 @@ impl LowPrioritySource for Postgres {
 		if self.low.is_empty() {
 			let usernames = schema::names::table
 				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::status.ne(i16::from(Status::Unknown)))
-				.filter(schema::names::frequency.lt(0.01))
+				.filter(schema::names::status.ne(i16::from(Status::Taken)))
 				.filter(
-					schema::names::frequency
-						.ge(0.001)
-						.or(schema::names::definition.is_not_null()),
+					schema::names::frequency.lt(0.01).and(
+						schema::names::frequency
+							.ge(0.001)
+							.or(schema::names::definition.is_not_null()),
+					),
 				)
 				.order((
 					schema::names::verified_at.asc(),

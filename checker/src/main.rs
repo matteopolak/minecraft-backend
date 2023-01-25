@@ -94,7 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 										name,
 										match status {
 											Status::Unknown => "unknown",
-											Status::Available => "available",
+											Status::Available | Status::BatchAvailable =>
+												"available",
 											Status::Taken => "unavailable",
 											Status::Banned => "banned",
 										}

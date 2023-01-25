@@ -118,6 +118,10 @@ pub async fn view_names(
 						names = names.filter(schema::names::status.ne(i16::from(Status::Unknown)));
 						has_taken_tag = true;
 					}
+					"banned" => {
+						names = names.filter(schema::names::status.eq(i16::from(Status::Banned)));
+						has_taken_tag = true;
+					}
 					"name" => names = names.filter(schema::names::tags.contains(vec!["name"])),
 					tag => other_tags.push(tag),
 				}

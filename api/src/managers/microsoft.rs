@@ -43,7 +43,7 @@ pub async fn get_java_token(
 			let data = serde_json::from_reader::<_, JavaData>(reader)
 				.map_err(|_| xbox::Error::DeserializationError)?;
 
-			if data.expires_at > chrono::Utc::now() {
+			if data.expires_at > chrono::Utc::now() + chrono::Duration::minutes(5) {
 				return Ok(data);
 			}
 		}

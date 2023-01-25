@@ -353,7 +353,7 @@ pub async fn get_xsts_token(
 			let data = serde_json::from_reader::<_, XstsData>(reader)
 				.map_err(|_| Error::DeserializationError)?;
 
-			if data.expires_at > chrono::Utc::now() {
+			if data.expires_at > chrono::Utc::now() + chrono::Duration::minutes(5) {
 				return Ok(data);
 			}
 		}

@@ -96,7 +96,7 @@ impl Submit for Postgres {
 	) -> Result<(bool, f64), Box<dyn std::error::Error>> {
 		let status: i16 = status.into();
 		let conditional_update = sql::<Timestamptz>(&format!(
-			"CASE WHEN \"status\" != '{status}' THEN NOW() ELSE \"updatedAt\" END",
+			"CASE WHEN \"status\" != {status} THEN NOW() ELSE \"updatedAt\" END",
 		))
 		.into_sql();
 
@@ -135,8 +135,6 @@ impl HighPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
-
-			println!("high: {}", self.high.len());
 		}
 
 		self.high.pop()
@@ -165,8 +163,6 @@ impl MediumPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
-
-			println!("medium: {}", self.medium.len());
 		}
 
 		self.medium.pop()
@@ -199,8 +195,6 @@ impl LowPrioritySource for Postgres {
 				.returning(schema::names::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
-
-			println!("low: {}", self.low.len());
 		}
 
 		self.low.pop()

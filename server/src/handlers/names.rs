@@ -211,12 +211,12 @@ pub async fn view_names(
 
 	let names = names
 		.load::<FormattedName>(connection)
-		.map_err(|_| actix_web::error::ErrorInternalServerError(""));
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	let count = query()
 		.count()
 		.get_result::<i64>(connection)
-		.map_err(|_| actix_web::error::ErrorInternalServerError(""));
+		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	Ok(HttpResponse::Ok().json(ViewNamesResponse {
 		data: names,

@@ -86,6 +86,7 @@ pub struct XstsData {
 	pub xid: Option<String>,
 	pub hash: String,
 	pub token: String,
+	#[serde(rename(serialize = "expires_on", deserialize = "expires_on"))]
 	pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 

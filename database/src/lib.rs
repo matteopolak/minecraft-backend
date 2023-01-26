@@ -5,6 +5,7 @@ use diesel::{
 	PgConnection,
 };
 
+pub mod functions;
 pub mod models;
 pub mod schema;
 
@@ -26,6 +27,7 @@ pub enum Status {
 	Taken,
 	Banned,
 	BatchAvailable,
+	BatchTaken,
 }
 
 impl From<i16> for Status {
@@ -36,6 +38,7 @@ impl From<i16> for Status {
 			2 => Status::Taken,
 			3 => Status::Banned,
 			4 => Status::BatchAvailable,
+			5 => Status::BatchTaken,
 			_ => Status::Unknown,
 		}
 	}
@@ -49,6 +52,7 @@ impl From<Status> for i16 {
 			Status::Taken => 2,
 			Status::Banned => 3,
 			Status::BatchAvailable => 4,
+			Status::BatchTaken => 5,
 		}
 	}
 }

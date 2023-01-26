@@ -115,7 +115,8 @@ pub async fn view_names(
 						names = names.filter(schema::likes::username.is_not_null());
 					}
 					"taken" => {
-						names = names.filter(schema::names::status.ne(i16::from(Status::Unknown)));
+						names = names
+							.filter(schema::names::status.ne(i16::from(Status::BatchAvailable)));
 						has_taken_tag = true;
 					}
 					"banned" => {

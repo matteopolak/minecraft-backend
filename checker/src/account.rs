@@ -90,9 +90,11 @@ impl Account {
 			return Err(Error::NoClient);
 		};
 
-		api::microsoft::get_java_token(client, credentials, Some(CACHE_DIR.as_path()))
-			.await
-			.map_err(|_| Error::Token)
+		Ok(
+			api::microsoft::get_java_token(client, credentials, Some(CACHE_DIR.as_path()))
+				.await
+				.unwrap(),
+		)
 	}
 
 	pub fn is_token_valid(token: Option<&JavaData>) -> bool {

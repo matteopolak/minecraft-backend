@@ -31,6 +31,7 @@ fn time() -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+	println!("{} Starting...", time());
 	dotenv::dotenv().ok();
 
 	let pool = get_pool();
@@ -96,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 											Status::Unknown => "unknown",
 											Status::Available | Status::BatchAvailable =>
 												"available",
-											Status::Taken => "unavailable",
+											Status::Taken | Status::BatchTaken => "unavailable",
 											Status::Banned => "banned",
 										}
 									);
@@ -147,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						let (updated, freq) =
 							connector.submit(&name, status).unwrap_or((false, 0.));
 
-						if updated && is_available {
+						if updated && is_available && freq > 10. {
 							HTTP.post("https://api.pushed.co/1/push")
 								.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
 								.form(&PushedPayload {

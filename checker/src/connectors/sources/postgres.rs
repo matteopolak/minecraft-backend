@@ -1,4 +1,4 @@
-use database::{schema, PostgresPool, Status};
+use database::{functions::date_trunc, schema, PostgresPool, Status};
 use diesel::{
 	dsl::sql, sql_types::Timestamptz, BoolExpressionMethods, ExpressionMethods, IntoSql, QueryDsl,
 	Queryable, RunQueryDsl,
@@ -96,11 +96,11 @@ impl Submit for Postgres {
 	) -> Result<(bool, f64), Box<dyn std::error::Error>> {
 		let status: i16 = status.into();
 		let conditional_update = sql::<Timestamptz>(&format!(
-			"CASE WHEN \"status\" != {status} THEN NOW() ELSE \"updatedAt\" END",
+			"CASE WHEN \"status\" != {status} THEN CURRENT_TIMESTAMP ELSE \"updatedAt\" END",
 		))
 		.into_sql();
 
-		let row = diesel::update(schema::names::table)
+		Ok(diesel::update(schema::names::table)
 			.filter(schema::names::username.eq(username))
 			.set((
 				schema::names::verified_at.eq(diesel::dsl::now),
@@ -108,10 +108,13 @@ impl Submit for Postgres {
 				schema::names::updating.eq(false),
 				schema::names::status.eq(status),
 			))
-			.returning((schema::names::frequency, schema::names::status.ne(status)))
-			.get_result::<(f64, bool)>(&mut self.pool.get()?)?;
-
-		Ok((row.1, row.0))
+			.returning((
+				// CURRENT_TIMESTAMP includes microseconds, but only milliseconds are stored in the database
+				// so we need to truncate the timestamp to milliseconds in order to see if the timestamp has changed
+				schema::names::updated_at.eq(date_trunc("milliseconds", diesel::dsl::now)),
+				schema::names::frequency,
+			))
+			.get_result::<(bool, f64)>(&mut self.pool.get()?)?)
 	}
 }
 
@@ -151,7 +154,7 @@ impl MediumPrioritySource for Postgres {
 						.ge(0.01)
 						.and(schema::names::frequency.lt(15.)),
 				)
-				.filter(schema::names::status.ne(i16::from(Status::Taken)))
+				.filter(schema::names::status.ne(i16::from(Status::BatchTaken)))
 				.order((
 					schema::names::verified_at.asc(),
 					schema::names::frequency.desc(),
@@ -177,7 +180,7 @@ impl LowPrioritySource for Postgres {
 		if self.low.is_empty() {
 			let usernames = schema::names::table
 				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::status.ne(i16::from(Status::Taken)))
+				.filter(schema::names::status.ne(i16::from(Status::BatchTaken)))
 				.filter(
 					schema::names::frequency.lt(0.01).and(
 						schema::names::frequency

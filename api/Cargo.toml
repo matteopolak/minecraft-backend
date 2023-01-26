@@ -6,7 +6,7 @@ authors = ["Matthew Polak <contact@matteopolak.com>"]
 description = "An API client for the Minecraft: Java Edition login flow"
 
 [dependencies]
-chrono = "0.4.23"
+chrono = { version = "0.4.23", features = ["serde"] }
 reqwest = { version = "0.11.14", features = ["gzip", "json"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"

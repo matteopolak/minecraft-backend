@@ -19,9 +19,9 @@ static PROXIES_PER_ACCOUNT: usize = 4;
 
 #[derive(Serialize)]
 struct PushedPayload<'a> {
-	app_key: &'static str,
-	app_secret: &'static str,
-	target_type: &'static str,
+	app_key: &'a str,
+	app_secret: &'a str,
+	target_type: &'a str,
 	content: &'a str,
 }
 
@@ -34,6 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	println!("{} Starting...", time());
 	dotenv::dotenv().ok();
 
+	let app_key = std::env::var("APP_KEY").expect("APP_KEY must be set");
+	let app_secret = std::env::var("APP_SECRET").expect("APP_SECRET must be set");
 	let pool = get_pool();
 
 	// use postgres connector
@@ -72,6 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		// spawn a new tokio task for each account
 		tasks.push(tokio::spawn({
 			let mut connector = connectors::sources::postgres::Postgres::new(pool.clone());
+			let app_key = app_key.clone();
+			let app_secret = app_secret.clone();
 
 			async move {
 				'outer: loop {
@@ -152,12 +156,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							HTTP.post("https://api.pushed.co/1/push")
 								.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
 								.form(&PushedPayload {
-									app_key: "7ZbySgthX7JnmlPe3LHv",
-									app_secret: "D6sVv0aFEKg479IVI1JcdDaet1GOmc3dPQDWc5jiMFErx88gxjBBl6rtfJ1c8gsA",
+									app_key: &app_key,
+									app_secret: &app_secret,
 									target_type: "app",
-									content: &format!(
-										"{name} is now available! ({freq:.2})"
-									),
+									content: &format!("{name} is now available! ({freq:.2})"),
 								})
 								.send()
 								.await

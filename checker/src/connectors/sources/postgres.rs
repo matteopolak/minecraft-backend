@@ -5,6 +5,7 @@ use diesel::{
 	Queryable, RunQueryDsl,
 };
 use once_cell::sync::Lazy;
+use reqwest::Client;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -20,7 +21,7 @@ pub struct Postgres {
 	snipe: Option<Snipe>,
 	snipe_token: Option<JavaData>,
 	pool: PostgresPool,
-	client: reqwest::Client,
+	client: Option<Client>,
 }
 
 #[derive(Queryable)]
@@ -40,7 +41,7 @@ pub struct ProxyData {
 static SNIPE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 impl Postgres {
-	pub fn new(pool: PostgresPool) -> Self {
+	pub fn new(pool: PostgresPool, client: Option<Client>) -> Self {
 		Self {
 			high: Vec::new(),
 			medium: Vec::new(),
@@ -48,7 +49,7 @@ impl Postgres {
 			pool,
 			snipe: None,
 			snipe_token: None,
-			client: reqwest::Client::new(),
+			client,
 		}
 	}
 }
@@ -119,7 +120,7 @@ impl Connector for Postgres {
 				let _lock = SNIPE_LOCK.lock().await;
 
 				self.snipe_token = api::microsoft::get_java_token(
-					&self.client,
+					self.client.as_ref().unwrap(),
 					&api::xbox::Credentials {
 						username: &snipe.email,
 						password: &snipe.password,

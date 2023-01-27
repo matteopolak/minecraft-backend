@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// use postgres connector
 	let (mut proxies, accounts) = {
-		let connector = connectors::sources::postgres::Postgres::new(pool.clone());
+		let connector = connectors::sources::postgres::Postgres::new(pool.clone(), None);
 
 		// reset the status of all accounts
 		connector.reset()?;
@@ -73,7 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 		// spawn a new tokio task for each account
 		tasks.push(tokio::spawn({
-			let mut connector = connectors::sources::postgres::Postgres::new(pool.clone());
+			let mut connector = connectors::sources::postgres::Postgres::new(
+				pool.clone(),
+				account.get_client().cloned(),
+			);
 			let app_key = app_key.clone();
 			let app_secret = app_secret.clone();
 

@@ -7,10 +7,10 @@ use reqwest::{Client, Proxy, StatusCode};
 use serde::Deserialize;
 
 #[derive(Debug, Clone)]
-pub struct Account {
+pub struct Account<'a> {
 	clients: Vec<Client>,
 	proxies: Vec<Proxy>,
-	credentials: Credentials,
+	credentials: Credentials<'a>,
 	index: usize,
 	token: Option<JavaData>,
 }
@@ -25,17 +25,20 @@ pub enum Error {
 	Delay(tokio::time::Duration),
 }
 
-static CACHE_DIR: Lazy<PathBuf> = Lazy::new(|| PathBuf::from_str("cache").unwrap());
+pub static CACHE_DIR: Lazy<PathBuf> = Lazy::new(|| PathBuf::from_str("cache").unwrap());
 
 #[derive(Deserialize)]
 pub struct MinecraftResponse {
 	pub status: String,
 }
 
-impl Account {
+impl<'a> Account<'a> {
 	pub fn new(username: String, password: String) -> Self {
 		Self {
-			credentials: Credentials { username, password },
+			credentials: Credentials {
+				username: username.leak(),
+				password: password.leak(),
+			},
 			index: 0,
 			clients: vec![],
 			proxies: vec![],

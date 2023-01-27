@@ -80,9 +80,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			async move {
 				'outer: loop {
 					while let Some(name) = match priority {
-						0 => connector.next_high(),
-						1 => connector.next_medium(),
-						2 => connector.next_low(),
+						0 => connector.next_high().await,
+						1 => connector.next_medium().await,
+						2 => connector.next_low().await,
 						_ => unreachable!(),
 					} {
 						let mut first = true;
@@ -94,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 							match status {
 								Ok(status) => {
 									println!(
-										"[{}] {} is {}",
+										"[{}] {} is {} ({})",
 										time(),
 										name,
 										match status {
@@ -103,6 +103,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 												"available",
 											Status::Taken | Status::BatchTaken => "unavailable",
 											Status::Banned => "banned",
+										},
+										match priority {
+											0 => "high",
+											1 => "medium",
+											2 => "low",
+											_ => unreachable!(),
 										}
 									);
 
@@ -150,7 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 						let is_available = status == Status::Available;
 						let (updated, freq) =
-							connector.submit(&name, status).unwrap_or((false, 0.));
+							connector.submit(&name, status).await.unwrap_or((false, 0.));
 
 						if updated && is_available && freq > 10. {
 							HTTP.post("https://api.pushed.co/1/push")

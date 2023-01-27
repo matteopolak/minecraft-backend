@@ -387,6 +387,7 @@ dependencies = [
  "once_cell",
  "reqwest",
  "serde",
+ "sniper",
  "tokio",
 ]
 
@@ -1536,6 +1537,13 @@ name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
+
+[[package]]
+name = "sniper"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+]
 
 [[package]]
 name = "socket2"

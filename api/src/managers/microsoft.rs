@@ -26,14 +26,14 @@ pub struct JavaResponse {
 /// # Errors
 /// - `xbox::Error::RequestError` if the request fails
 /// - `xbox::Error::DeserializationError` if the response cannot be deserialized
-pub async fn get_java_token(
+pub async fn get_java_token<'a>(
 	client: &Client,
-	credentials: &xbox::Credentials,
+	credentials: &xbox::Credentials<'a>,
 	cache: Option<&Path>,
 ) -> Result<JavaData, xbox::Error> {
 	if let Some((cache, true)) = cache.map(|cache| (cache, cache.is_dir())) {
 		let mut cache = cache.to_path_buf();
-		cache.push(&credentials.username);
+		cache.push(credentials.username);
 		cache.push("java.json");
 
 		if cache.is_file() {
@@ -74,7 +74,7 @@ pub async fn get_java_token(
 
 	if let Some(cache) = cache {
 		let mut cache = cache.to_path_buf();
-		cache.push(&credentials.username);
+		cache.push(credentials.username);
 
 		if !cache.is_dir() {
 			std::fs::create_dir_all(&cache).map_err(|_| xbox::Error::CacheError)?;

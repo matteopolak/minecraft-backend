@@ -48,6 +48,18 @@ table! {
 }
 
 table! {
+	snipes (username) {
+		username -> Text,
+		#[sql_name = "createdAt"]
+		created_at -> Timestamptz,
+		needed -> SmallInt,
+		count -> SmallInt,
+		email -> Text,
+		password -> Text,
+	}
+}
+
+table! {
 	#[sql_name = "_NameToUser"]
 	likes (username, user_id) {
 		#[sql_name = "A"]

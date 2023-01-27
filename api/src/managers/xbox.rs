@@ -25,9 +25,9 @@ pub struct LogUserResponse {
 }
 
 #[derive(Debug, Clone)]
-pub struct Credentials {
-	pub username: String,
-	pub password: String,
+pub struct Credentials<'a> {
+	pub username: &'a str,
+	pub password: &'a str,
 }
 
 #[derive(Serialize, Debug)]
@@ -248,10 +248,10 @@ pub async fn pre_auth(client: &Client) -> Result<PreAuthData, Error> {
 /// - `Error::DeserializationError` if the response cannot be deserialized
 /// - `Error::SerializationError` if the request cannot be serialized
 /// - `Error::ParseError` if the response cannot be parsed
-pub async fn log_user(
+pub async fn log_user<'a>(
 	client: &Client,
 	auth: &PreAuthData,
-	credentials: &Credentials,
+	credentials: &Credentials<'a>,
 ) -> Result<LogUserResponse, Error> {
 	let mut headers = HeaderMap::new();
 
@@ -281,9 +281,9 @@ pub async fn log_user(
 	);
 
 	let qs = serde_qs::to_string(&LogUserQuery {
-		login: &credentials.username,
-		loginfmt: &credentials.username,
-		passwd: &credentials.password,
+		login: credentials.username,
+		loginfmt: credentials.username,
+		passwd: credentials.password,
 		ppft: &auth.ppft,
 	})
 	.map_err(|_| Error::SerializationError)?;
@@ -337,14 +337,14 @@ pub async fn exchange_rps_ticket_for_token(
 /// # Errors
 /// - `Error::RequestError` if the request fails
 /// - `Error::DeserializationError` if the response cannot be deserialized
-pub async fn get_xsts_token(
+pub async fn get_xsts_token<'a>(
 	client: &Client,
-	credentials: &Credentials,
+	credentials: &Credentials<'a>,
 	cache: Option<&Path>,
 ) -> Result<XstsData, Error> {
 	if let Some((cache, true)) = cache.map(|cache| (cache, cache.is_dir())) {
 		let mut cache = cache.to_path_buf();
-		cache.push(&credentials.username);
+		cache.push(credentials.username);
 		cache.push("xsts.json");
 
 		if cache.is_file() {
@@ -414,7 +414,7 @@ pub async fn get_xsts_token(
 
 	if let Some(cache) = cache {
 		let mut cache = cache.to_path_buf();
-		cache.push(&credentials.username);
+		cache.push(credentials.username);
 
 		if !cache.is_dir() {
 			std::fs::create_dir_all(&cache).map_err(|_| Error::CacheError)?;

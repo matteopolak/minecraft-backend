@@ -259,7 +259,7 @@ pub async fn like_name(
 	// insert into likes (username, user_id) values ($1, $2) on conflict do nothing
 	// get the user_id from the token in the same query
 
-	let result = diesel::insert_into(schema::likes::table)
+	let updates = diesel::insert_into(schema::likes::table)
 		.values((
 			schema::likes::username.eq(name.into_inner()),
 			schema::likes::user_id.eq(user_id),
@@ -269,7 +269,7 @@ pub async fn like_name(
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	Ok(HttpResponse::Ok().json(NameResponse {
-		updated: result > 0,
+		updated: updates > 0,
 	}))
 }
 
@@ -300,7 +300,7 @@ pub async fn dislike_name(
 		Err(_) => return Err(actix_web::error::ErrorUnauthorized("")),
 	};
 
-	let result = diesel::delete(schema::likes::table)
+	let updates = diesel::delete(schema::likes::table)
 		.filter(
 			schema::likes::username
 				.eq(name.into_inner())
@@ -310,6 +310,6 @@ pub async fn dislike_name(
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	Ok(HttpResponse::Ok().json(NameResponse {
-		updated: result > 0,
+		updated: updates > 0,
 	}))
 }

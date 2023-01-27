@@ -43,3 +43,13 @@ pub struct Like {
 	pub username: String,
 	pub user_id: i32,
 }
+
+#[derive(Queryable)]
+pub struct Snipe {
+	pub username: String,
+	pub created_at: chrono::DateTime<chrono::Utc>,
+	pub needed: i16,
+	pub count: i16,
+	pub email: String,
+	pub password: String,
+}

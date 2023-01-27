@@ -11,13 +11,18 @@ pub async fn snipe(username: &str, token: &str) -> bool {
 
 	match response {
 		Ok(response) => {
-			if response.status() == reqwest::StatusCode::NO_CONTENT {
+			if response.status() == reqwest::StatusCode::OK {
 				println!("{username} has been sniped!");
-			} else {
-				println!("{username} could not be sniped!");
-			}
 
-			response.status() != reqwest::StatusCode::FORBIDDEN
+				true
+			} else {
+				println!(
+					"{username} could not be sniped! (status: {})",
+					response.status()
+				);
+
+				false
+			}
 		}
 		Err(e) => {
 			println!("{username} could not be sniped: {e}");

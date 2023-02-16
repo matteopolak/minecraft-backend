@@ -120,7 +120,9 @@ impl Connector for Postgres {
 				let _lock = SNIPE_LOCK.lock().await;
 
 				self.snipe_token = api::microsoft::get_java_token(
-					self.client.as_ref().unwrap(),
+					self.client
+						.as_ref()
+						.expect("client was not created when snipe was checked"),
 					&api::xbox::Credentials {
 						username: &snipe.email,
 						password: &snipe.password,
@@ -217,7 +219,7 @@ impl Submit for Postgres {
 
 		let status: i16 = status.into();
 		let conditional_update = sql::<Timestamptz>(&format!(
-			"CASE WHEN \"status\" != {status} THEN CURRENT_TIMESTAMP ELSE \"updatedAt\" END",
+			"CASE WHEN \"status\" != {status} AND (\"status\" != 5 OR {status} != 2) THEN CURRENT_TIMESTAMP ELSE \"updatedAt\" END",
 		))
 		.into_sql();
 

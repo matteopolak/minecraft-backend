@@ -25,7 +25,8 @@ pub enum Error {
 	Delay(tokio::time::Duration),
 }
 
-pub static CACHE_DIR: Lazy<PathBuf> = Lazy::new(|| PathBuf::from_str("cache").unwrap());
+pub static CACHE_DIR: Lazy<PathBuf> =
+	Lazy::new(|| PathBuf::from_str("cache").expect("could not create cache directory path"));
 
 #[derive(Deserialize)]
 pub struct MinecraftResponse {
@@ -52,7 +53,7 @@ impl<'a> Account<'a> {
 				.proxy(agent.clone())
 				.gzip(true)
 				.build()
-				.unwrap(),
+				.expect("could not create http client"),
 		);
 
 		self.proxies.push(agent);
@@ -93,11 +94,9 @@ impl<'a> Account<'a> {
 			return Err(Error::NoClient);
 		};
 
-		Ok(
-			api::microsoft::get_java_token(client, credentials, Some(CACHE_DIR.as_path()))
-				.await
-				.unwrap(),
-		)
+		api::microsoft::get_java_token(client, credentials, Some(CACHE_DIR.as_path()))
+			.await
+			.map_err(|_| Error::Token)
 	}
 
 	pub fn is_token_valid(token: Option<&JavaData>) -> bool {
@@ -134,7 +133,7 @@ impl<'a> Account<'a> {
 			Err(e) => {
 				eprintln!("Error: {e:?}");
 				eprintln!("Proxy: {:?}", self.proxies.get(self.index));
-				self.remove_current_client();
+				// self.remove_current_client();
 				return Err(Error::Retry);
 			}
 		};

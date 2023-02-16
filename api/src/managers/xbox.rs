@@ -90,12 +90,17 @@ pub struct XstsData {
 	pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+	#[error("parse error")]
 	ParseError,
+	#[error("request error")]
 	RequestError,
+	#[error("serialization error")]
 	SerializationError,
+	#[error("deserialization error")]
 	DeserializationError,
+	#[error("cache error")]
 	CacheError,
 }
 
@@ -202,7 +207,10 @@ pub async fn pre_auth(client: &Client) -> Result<PreAuthData, Error> {
 		.intersperse(";")
 		.collect::<String>();
 
-	let html = response.text().await.map_err(|_| Error::RequestError)?;
+	let html = response
+		.text()
+		.await
+		.map_err(|_| Error::DeserializationError)?;
 
 	Ok(PreAuthData {
 		cookie,
@@ -351,8 +359,8 @@ pub async fn get_xsts_token<'a>(
 			let file = File::open(cache).map_err(|_| Error::CacheError)?;
 			let reader = BufReader::new(file);
 
-			let data = serde_json::from_reader::<_, XstsData>(reader)
-				.map_err(|_| Error::DeserializationError)?;
+			let data =
+				serde_json::from_reader::<_, XstsData>(reader).map_err(|_| Error::CacheError)?;
 
 			if data.expires_at > chrono::Utc::now() + chrono::Duration::minutes(5) {
 				return Ok(data);
@@ -424,7 +432,7 @@ pub async fn get_xsts_token<'a>(
 
 		let file = File::create(cache).map_err(|_| Error::CacheError)?;
 
-		serde_json::to_writer(file, &data).map_err(|_| Error::SerializationError)?;
+		serde_json::to_writer(file, &data).map_err(|_| Error::CacheError)?;
 	}
 
 	Ok(data)

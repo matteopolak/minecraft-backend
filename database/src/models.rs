@@ -1,12 +1,13 @@
+use chrono::{DateTime, Utc};
 use diesel::prelude::Queryable;
 
 #[derive(Queryable)]
 pub struct Name {
 	pub username: String,
-	pub created_at: chrono::DateTime<chrono::Utc>,
-	pub updated_at: chrono::DateTime<chrono::Utc>,
-	pub checked_at: chrono::DateTime<chrono::Utc>,
-	pub verified_at: chrono::DateTime<chrono::Utc>,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+	pub checked_at: DateTime<Utc>,
+	pub verified_at: DateTime<Utc>,
 	pub definition: Option<Vec<String>>,
 	pub frequency: f32,
 	pub length: i32,

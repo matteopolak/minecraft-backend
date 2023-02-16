@@ -19,7 +19,7 @@ impl Connector for Postgres {
 			.select(schema::names::username)
 			.order(schema::names::checked_at.asc())
 			.limit(size)
-			.load::<String>(&mut self.pool.get().unwrap())
+			.load::<String>(&mut self.pool.get().expect("failed to get connection from pool"))
 			.ok()
 	}
 

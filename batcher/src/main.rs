@@ -27,19 +27,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let client = {
 		let mut headers = HeaderMap::new();
 
-		headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+		headers.insert(
+			header::CONTENT_TYPE,
+			"application/json"
+				.parse()
+				.expect("could not serialize content type header"),
+		);
 		headers.insert(
 			"Token",
 			std::env::var("SECRET")
 				.expect("environment variable SECRET not found")
 				.parse()
-				.unwrap(),
+				.expect("failed to parse SECRET"),
 		);
 
 		reqwest::Client::builder()
 			.default_headers(headers)
 			.build()
-			.unwrap()
+			.expect("could not build http client")
 	};
 
 	let mut start = std::time::Instant::now();
@@ -134,8 +139,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			if let Some(sleep) =
 				// this will panic if the number of milliseconds is greater than u64::MAX
 				// i.e. ~300 million years
-				4_000u64.checked_sub(start.elapsed().as_millis().try_into().unwrap())
-			{
+				4_000u64.checked_sub(start.elapsed().as_millis().try_into().expect(
+						"wow, the time elapsed in milliseconds is greater than u64::MAX",
+					)) {
 				println!("pausing for {sleep} ms");
 				tokio::time::sleep(std::time::Duration::from_millis(sleep)).await;
 			}

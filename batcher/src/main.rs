@@ -1,21 +1,11 @@
 #![feature(extract_if)]
+use std::collections::HashSet;
+
 use futures::StreamExt;
 use reqwest::header::{self, HeaderMap};
-use serde::Deserialize;
 
 use crate::connectors::prelude::Connector;
 mod connectors;
-
-#[derive(Deserialize)]
-struct Profile {
-	name: String,
-}
-
-#[derive(Deserialize)]
-struct Response {
-	data: Vec<Profile>,
-	retry: Vec<String>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,46 +40,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let mut start = std::time::Instant::now();
 
 	while let Some(mut batch) = connector.next(1_000) {
-		let result = futures::stream::iter(batch.chunks(250).map(|chunk| {
+		let result = futures::stream::iter(batch.iter().map(|chunk| {
 			let client = client.clone();
 
 			async move {
 				let response = client
-					.post("https://worker.minecraft.matteopolak.com")
-					.json(&chunk)
+					.head(format!("https://mc-heads.net/head/{chunk}"))
 					.send()
-					.await
-					.ok()?
-					.json::<Response>()
 					.await
 					.ok()?;
 
-				Some((
-					response
-						.data
-						.into_iter()
-						.map(|profile| profile.name)
-						.collect::<Vec<_>>(),
-					response.retry,
-				))
+				if response.headers().contains_key("etag") {
+					return Some((Some(chunk.to_string()), None));
+				}
+
+				if response.status().is_success() {
+					return None;
+				}
+
+				Some((None, Some(chunk.to_string())))
 			}
 		}))
-		.buffer_unordered(10)
+		.buffer_unordered(25)
 		.filter_map(|x| async { x })
 		.collect::<Vec<_>>()
 		.await;
 
-		let mut pause = false;
 		let retry = result
 			.iter()
-			.flat_map(|(_, retry)| {
-				if retry.len() > 100 {
-					pause = true;
-				}
-
-				retry
-			})
-			.collect::<std::collections::HashSet<_>>();
+			.filter_map(|r| r.0.clone())
+			.collect::<HashSet<_>>();
+		let pause = result.iter().filter(|r| r.1.is_some()).count() > 100;
 
 		// these names could have capitalization, so we need to lowercase them
 		// `to_ascii_lowercase` is used because it's faster than `to_lowercase`

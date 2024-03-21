@@ -345,6 +345,7 @@ pub async fn exchange_rps_ticket_for_token(
 /// # Errors
 /// - `Error::RequestError` if the request fails
 /// - `Error::DeserializationError` if the response cannot be deserialized
+#[allow(clippy::missing_panics_doc)]
 pub async fn get_xsts_token<'a>(
 	client: &Client,
 	credentials: &Credentials<'a>,
@@ -362,7 +363,11 @@ pub async fn get_xsts_token<'a>(
 			let data =
 				serde_json::from_reader::<_, XstsData>(reader).map_err(|_| Error::CacheError)?;
 
-			if data.expires_at > chrono::Utc::now() + chrono::Duration::minutes(5) {
+			if data.expires_at
+				> chrono::Utc::now()
+					+ chrono::Duration::try_minutes(5)
+						.expect("5 minutes to be less than i64::MAX / 1_000")
+			{
 				return Ok(data);
 			}
 		}

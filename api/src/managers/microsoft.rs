@@ -26,6 +26,7 @@ pub struct JavaResponse {
 /// # Errors
 /// - `xbox::Error::RequestError` if the request fails
 /// - `xbox::Error::DeserializationError` if the response cannot be deserialized
+#[allow(clippy::missing_panics_doc)]
 pub async fn get_java_token<'a>(
 	client: &Client,
 	credentials: &xbox::Credentials<'a>,
@@ -43,7 +44,11 @@ pub async fn get_java_token<'a>(
 			let data = serde_json::from_reader::<_, JavaData>(reader)
 				.map_err(|_| xbox::Error::DeserializationError)?;
 
-			if data.expires_at > chrono::Utc::now() + chrono::Duration::minutes(5) {
+			if data.expires_at
+				> chrono::Utc::now()
+					+ chrono::Duration::try_minutes(5)
+						.expect("5 minutes to be less than i64::MAX / 1_000")
+			{
 				return Ok(data);
 			}
 		}
@@ -69,7 +74,9 @@ pub async fn get_java_token<'a>(
 
 	let data = JavaData {
 		token: format!("{} {}", response.token_type, response.access_token),
-		expires_at: chrono::Utc::now() + chrono::Duration::seconds(i64::from(response.expires_in)),
+		expires_at: chrono::Utc::now()
+			+ chrono::Duration::try_seconds(i64::from(response.expires_in))
+				.expect("expire time to be within the limit"),
 	};
 
 	if let Some(cache) = cache {

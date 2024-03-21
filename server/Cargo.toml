@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-cors = "0.6.4"
-actix-web = "4.3.0"
-chrono = { version = "0.4.23", features = ["serde"] }
 database = { path = "../database" }
-diesel = { version = "2.0.2", features = ["postgres", "chrono"] }
-dotenv = "0.15.0"
-serde = { version = "1.0.152", features = ["derive"] }
+actix-cors.workspace = true
+actix-web.workspace = true
+chrono.workspace = true
+diesel.workspace = true
+dotenvy.workspace = true
+serde.workspace = true

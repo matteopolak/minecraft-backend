@@ -19,7 +19,7 @@ struct Response {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	dotenv::dotenv().ok();
+	dotenvy::dotenv().ok();
 
 	let pool = database::get_pool();
 	let mut connector = connectors::sources::postgres::Postgres::new(pool);

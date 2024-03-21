@@ -1,6 +1,4 @@
 #![warn(clippy::pedantic)]
-#![feature(async_fn_in_trait)]
-#![feature(string_leak)]
 #![allow(clippy::too_many_lines)]
 mod account;
 mod connectors;
@@ -32,7 +30,7 @@ fn time() -> String {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	println!("{} Starting...", time());
-	dotenv::dotenv().ok();
+	dotenvy::dotenv().ok();
 
 	let app_key = std::env::var("APP_KEY").expect("APP_KEY must be set");
 	let app_secret = std::env::var("APP_SECRET").expect("APP_SECRET must be set");

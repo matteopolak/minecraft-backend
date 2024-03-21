@@ -110,7 +110,11 @@ impl Connector for Postgres {
 	async fn check_for_snipe(&mut self) -> Option<&Snipe> {
 		if let Some(snipe) = self.snipe.as_ref() {
 			if let Some(token) = self.snipe_token.as_ref() {
-				if token.expires_at < chrono::Utc::now() + chrono::Duration::minutes(5) {
+				if token.expires_at
+					< chrono::Utc::now()
+						+ chrono::Duration::try_minutes(5)
+							.expect("5 minutes to be less than i64::MAX / 1_000")
+				{
 					self.snipe_token = None;
 				}
 			}

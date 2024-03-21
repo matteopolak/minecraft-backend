@@ -1,10 +1,7 @@
 use actix_web::{get, http::header, post, web, HttpRequest, HttpResponse};
 use database::{schema, PostgresPool, Status};
 use diesel::prelude::*;
-use diesel::{
-	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl, Queryable, RunQueryDsl,
-	TextExpressionMethods,
-};
+use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -91,10 +88,8 @@ pub async fn view_names(
 			.unwrap_or(false)
 		{
 			// filter for updated_at to be within the last 24 hours
-			names = names.filter(
-				schema::names::updated_at
-					.ge(chrono::Utc::now().naive_utc() - chrono::Duration::days(1)),
-			);
+			names = names.filter(schema::names::updated_at.ge(chrono::Utc::now().naive_utc()
+				- chrono::Duration::try_days(1).expect("1 day to be less than i64::MAX / 1_000")));
 		} else if let Some(from) = data.from {
 			names = names.filter(schema::names::updated_at.ge(from));
 		}

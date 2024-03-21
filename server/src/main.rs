@@ -2,11 +2,10 @@ mod handlers;
 
 use actix_cors::Cors;
 use actix_web::{http::header, web, App, HttpServer};
-use dotenv::dotenv;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	dotenv().ok();
+	dotenvy::dotenv().ok();
 
 	let pool = database::get_pool();
 

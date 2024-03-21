@@ -101,7 +101,12 @@ impl<'a> Account<'a> {
 
 	pub fn is_token_valid(token: Option<&JavaData>) -> bool {
 		match token {
-			Some(token) => token.expires_at > chrono::Utc::now() + chrono::Duration::seconds(30),
+			Some(token) => {
+				token.expires_at
+					> chrono::Utc::now()
+						+ chrono::Duration::try_seconds(30)
+							.expect("30 to be less than i64::MAX / 1_000")
+			}
 			None => false,
 		}
 	}
@@ -162,6 +167,6 @@ impl<'a> Account<'a> {
 				.map_err(|_| Error::Deserialization)?
 				.status,
 		)
-		.map_err(|_| Error::Deserialization)
+		.map_err(|()| Error::Deserialization)
 	}
 }

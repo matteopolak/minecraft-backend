@@ -2,7 +2,6 @@
 use std::collections::HashSet;
 
 use futures::StreamExt;
-use reqwest::header::{self, HeaderMap};
 
 use crate::connectors::prelude::Connector;
 mod connectors;
@@ -14,33 +13,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let pool = database::get_pool();
 	let mut connector = connectors::sources::postgres::Postgres::new(pool);
 
-	let client = {
-		let mut headers = HeaderMap::new();
-
-		headers.insert(
-			header::CONTENT_TYPE,
-			"application/json"
-				.parse()
-				.expect("could not serialize content type header"),
-		);
-		headers.insert(
-			"Token",
-			std::env::var("SECRET")
-				.expect("environment variable SECRET not found")
-				.parse()
-				.expect("failed to parse SECRET"),
-		);
-
-		reqwest::Client::builder()
-			.default_headers(headers)
-			.build()
-			.expect("could not build http client")
-	};
+	let client = reqwest::Client::new();
 
 	let mut start = std::time::Instant::now();
 
 	while let Some(mut batch) = connector.next(1_000) {
-		let result = futures::stream::iter(batch.iter().map(|chunk| {
+		let mut result = futures::stream::iter(batch.iter().map(|chunk| {
 			let client = client.clone();
 
 			async move {
@@ -68,16 +46,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 		let retry = result
 			.iter()
-			.filter_map(|r| r.0.clone())
+			.filter_map(|r| r.1.clone())
 			.collect::<HashSet<_>>();
-		let pause = result.iter().filter(|r| r.1.is_some()).count() > 100;
+		let pause = retry.len() > 100;
 
 		// these names could have capitalization, so we need to lowercase them
 		// `to_ascii_lowercase` is used because it's faster than `to_lowercase`
 		// and all characters are in the range of ASCII (a-zA-Z0-9_)
 		let taken = result
-			.iter()
-			.flat_map(|(taken, _)| taken.iter().map(|name| name.to_ascii_lowercase()))
+			.iter_mut()
+			.flat_map(|(taken, _)| {
+				taken.iter_mut().map(|name| {
+					name.make_ascii_lowercase();
+					&*name
+				})
+			})
 			.collect::<std::collections::HashSet<_>>();
 
 		// remove names that were not checked from the availability pool
@@ -120,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			if let Some(sleep) =
 				// this will panic if the number of milliseconds is greater than u64::MAX
 				// i.e. ~300 million years
-				4_000u64.checked_sub(start.elapsed().as_millis().try_into().expect(
+				2_000u64.checked_sub(start.elapsed().as_millis().try_into().expect(
 						"wow, the time elapsed in milliseconds is greater than u64::MAX",
 					)) {
 				println!("pausing for {sleep} ms");

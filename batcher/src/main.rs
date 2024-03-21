@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let mut start = std::time::Instant::now();
 
-	while let Some(mut batch) = connector.next(1_000) {
+	while let Some(mut batch) = connector.next(100) {
 		let mut result = futures::stream::iter(batch.iter().map(|chunk| {
 			let client = client.clone();
 

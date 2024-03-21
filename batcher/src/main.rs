@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		// mutate the original `batch` vector and remove names that were taken
 		// resulting in `batch` being a vector of names that are available
 		let unavailable = batch
-			.drain_if(|username| taken.contains(username))
+			.extract_if(|username| taken.contains(username))
 			.collect::<Vec<_>>();
 
 		// `batch` now contains names that are *not taken*, which

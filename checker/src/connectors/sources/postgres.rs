@@ -56,20 +56,20 @@ impl Postgres {
 
 impl Connector for Postgres {
 	fn reset(&self) -> Result<(), Box<dyn std::error::Error>> {
-		diesel::update(schema::names::table)
-			.set(schema::names::updating.eq(false))
+		diesel::update(schema::name::table)
+			.set(schema::name::updating.eq(false))
 			.execute(&mut self.pool.get()?)?;
 
-		diesel::update(schema::snipes::table)
-			.set(schema::snipes::count.eq(0))
+		diesel::update(schema::snipe::table)
+			.set(schema::snipe::count.eq(0))
 			.execute(&mut self.pool.get()?)?;
 
 		Ok(())
 	}
 
 	fn get_accounts<'a>(&self) -> Result<Vec<Account<'a>>, Box<dyn std::error::Error>> {
-		let accounts = schema::accounts::table
-			.select((schema::accounts::username, schema::accounts::password))
+		let accounts = schema::account::table
+			.select((schema::account::username, schema::account::password))
 			.load::<AccountData>(&mut self.pool.get()?)?;
 
 		Ok(accounts
@@ -82,12 +82,12 @@ impl Connector for Postgres {
 	}
 
 	fn get_proxies(&self) -> Result<Vec<reqwest::Proxy>, Box<dyn std::error::Error>> {
-		let proxies = schema::proxies::table
+		let proxies = schema::proxy::table
 			.select((
-				schema::proxies::address,
-				schema::proxies::port,
-				schema::proxies::username,
-				schema::proxies::password,
+				schema::proxy::address,
+				schema::proxy::port,
+				schema::proxy::username,
+				schema::proxy::password,
 			))
 			.load::<ProxyData>(&mut self.pool.get()?)?;
 
@@ -184,16 +184,16 @@ impl Connector for Postgres {
 			return self.snipe.as_ref();
 		}
 
-		self.snipe = diesel::update(schema::snipes::table)
-			.filter(schema::snipes::count.lt(schema::snipes::needed))
-			.set((schema::snipes::count.eq(schema::snipes::count + 1),))
+		self.snipe = diesel::update(schema::snipe::table)
+			.filter(schema::snipe::count.lt(schema::snipe::needed))
+			.set((schema::snipe::count.eq(schema::snipe::count + 1),))
 			.returning((
-				schema::snipes::username,
-				schema::snipes::created_at,
-				schema::snipes::needed,
-				schema::snipes::count,
-				schema::snipes::email,
-				schema::snipes::password,
+				schema::snipe::username,
+				schema::snipe::created_at,
+				schema::snipe::needed,
+				schema::snipe::count,
+				schema::snipe::email,
+				schema::snipe::password,
 			))
 			.get_result::<Snipe>(&mut self.pool.get().ok()?)
 			.ok();
@@ -213,8 +213,8 @@ impl Submit for Postgres {
 				&& status == Status::Available
 				&& sniper::snipe(username, &token.token).await
 			{
-				diesel::delete(schema::snipes::table)
-					.filter(schema::snipes::username.eq(username))
+				diesel::delete(schema::snipe::table)
+					.filter(schema::snipe::username.eq(username))
 					.execute(&mut self.pool.get()?)?;
 
 				println!("[{}] Sniped {username}!", time());
@@ -227,19 +227,19 @@ impl Submit for Postgres {
 		))
 		.into_sql();
 
-		Ok(diesel::update(schema::names::table)
-			.filter(schema::names::username.eq(username))
+		Ok(diesel::update(schema::name::table)
+			.filter(schema::name::username.eq(username))
 			.set((
-				schema::names::verified_at.eq(diesel::dsl::now),
-				schema::names::updated_at.eq(conditional_update),
-				schema::names::updating.eq(false),
-				schema::names::status.eq(status),
+				schema::name::verified_at.eq(diesel::dsl::now),
+				schema::name::updated_at.eq(conditional_update),
+				schema::name::updating.eq(false),
+				schema::name::status.eq(status),
 			))
 			.returning((
 				// CURRENT_TIMESTAMP includes microseconds, but only milliseconds are stored in the database
 				// so we need to truncate the timestamp to milliseconds in order to see if the timestamp has changed
-				schema::names::updated_at.eq(date_trunc("milliseconds", diesel::dsl::now)),
-				schema::names::frequency,
+				schema::name::updated_at.eq(date_trunc("milliseconds", diesel::dsl::now)),
+				schema::name::frequency,
 			))
 			.get_result::<(bool, f64)>(&mut self.pool.get()?)?)
 	}
@@ -252,21 +252,21 @@ impl HighPrioritySource for Postgres {
 		}
 
 		if self.high.is_empty() {
-			let usernames = schema::names::table
-				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::frequency.ge(15.))
+			let usernames = schema::name::table
+				.filter(schema::name::updating.eq(false))
+				.filter(schema::name::frequency.ge(15.))
 				.order((
-					schema::names::verified_at.asc(),
-					schema::names::frequency.desc(),
+					schema::name::verified_at.asc(),
+					schema::name::frequency.desc(),
 				))
 				.limit(100)
-				.select(schema::names::username)
+				.select(schema::name::username)
 				.into_boxed();
 
-			self.high = diesel::update(schema::names::table)
-				.filter(schema::names::username.eq_any(usernames))
-				.set(schema::names::updating.eq(true))
-				.returning(schema::names::username)
+			self.high = diesel::update(schema::name::table)
+				.filter(schema::name::username.eq_any(usernames))
+				.set(schema::name::updating.eq(true))
+				.returning(schema::name::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
 		}
@@ -282,26 +282,26 @@ impl MediumPrioritySource for Postgres {
 		}
 
 		if self.medium.is_empty() {
-			let usernames = schema::names::table
-				.filter(schema::names::updating.eq(false))
+			let usernames = schema::name::table
+				.filter(schema::name::updating.eq(false))
 				.filter(
-					schema::names::frequency
+					schema::name::frequency
 						.ge(0.01)
-						.and(schema::names::frequency.lt(15.)),
+						.and(schema::name::frequency.lt(15.)),
 				)
-				.filter(schema::names::status.ne(i16::from(Status::BatchTaken)))
+				.filter(schema::name::status.ne(i16::from(Status::BatchTaken)))
 				.order((
-					schema::names::verified_at.asc(),
-					schema::names::frequency.desc(),
+					schema::name::verified_at.asc(),
+					schema::name::frequency.desc(),
 				))
 				.limit(100)
-				.select(schema::names::username)
+				.select(schema::name::username)
 				.into_boxed();
 
-			self.medium = diesel::update(schema::names::table)
-				.filter(schema::names::username.eq_any(usernames))
-				.set(schema::names::updating.eq(true))
-				.returning(schema::names::username)
+			self.medium = diesel::update(schema::name::table)
+				.filter(schema::name::username.eq_any(usernames))
+				.set(schema::name::updating.eq(true))
+				.returning(schema::name::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
 		}
@@ -317,28 +317,28 @@ impl LowPrioritySource for Postgres {
 		}
 
 		if self.low.is_empty() {
-			let usernames = schema::names::table
-				.filter(schema::names::updating.eq(false))
-				.filter(schema::names::status.ne(i16::from(Status::BatchTaken)))
+			let usernames = schema::name::table
+				.filter(schema::name::updating.eq(false))
+				.filter(schema::name::status.ne(i16::from(Status::BatchTaken)))
 				.filter(
-					schema::names::frequency.lt(0.01).and(
-						schema::names::frequency
+					schema::name::frequency.lt(0.01).and(
+						schema::name::frequency
 							.ge(0.001)
-							.or(schema::names::definition.is_not_null()),
+							.or(schema::name::definition.is_not_null()),
 					),
 				)
 				.order((
-					schema::names::verified_at.asc(),
-					schema::names::frequency.desc(),
+					schema::name::verified_at.asc(),
+					schema::name::frequency.desc(),
 				))
 				.limit(100)
-				.select(schema::names::username)
+				.select(schema::name::username)
 				.into_boxed();
 
-			self.low = diesel::update(schema::names::table)
-				.filter(schema::names::username.eq_any(usernames))
-				.set(schema::names::updating.eq(true))
-				.returning(schema::names::username)
+			self.low = diesel::update(schema::name::table)
+				.filter(schema::name::username.eq_any(usernames))
+				.set(schema::name::updating.eq(true))
+				.returning(schema::name::username)
 				.get_results::<String>(&mut self.pool.get().ok()?)
 				.ok()?;
 		}

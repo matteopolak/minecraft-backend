@@ -59,9 +59,9 @@ pub async fn view_names(
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
 	// get the user from the database, or return a 401 if the token is invalid
-	let user_id = schema::users::table
-		.select(schema::users::id)
-		.filter(schema::users::key.eq(token))
+	let user_id = schema::user::table
+		.select(schema::user::id)
+		.filter(schema::user::key.eq(token))
 		.get_result::<i32>(connection);
 
 	let user_id = match user_id {
@@ -70,15 +70,15 @@ pub async fn view_names(
 	};
 
 	let query = || {
-		let mut names = schema::names::table.into_boxed().left_join(
-			schema::likes::table.on(schema::likes::username
-				.eq(schema::names::username)
-				.and(schema::likes::user_id.eq(user_id))),
+		let mut names = schema::name::table.into_boxed().left_join(
+			schema::like::table.on(schema::like::username
+				.eq(schema::name::username)
+				.and(schema::like::user_id.eq(user_id))),
 		);
 
 		if let Some(search) = &data.search {
 			names = names
-				.filter(schema::names::username.like(format!("%{}%", search.to_ascii_lowercase())))
+				.filter(schema::name::username.like(format!("%{}%", search.to_ascii_lowercase())))
 		}
 
 		if data
@@ -88,14 +88,14 @@ pub async fn view_names(
 			.unwrap_or(false)
 		{
 			// filter for updated_at to be within the last 24 hours
-			names = names.filter(schema::names::updated_at.ge(chrono::Utc::now().naive_utc()
+			names = names.filter(schema::name::updated_at.ge(chrono::Utc::now().naive_utc()
 				- chrono::Duration::try_days(1).expect("1 day to be less than i64::MAX / 1_000")));
 		} else if let Some(from) = data.from {
-			names = names.filter(schema::names::updated_at.ge(from));
+			names = names.filter(schema::name::updated_at.ge(from));
 		}
 
 		if let Some(to) = data.to {
-			names = names.filter(schema::names::updated_at.le(to));
+			names = names.filter(schema::name::updated_at.le(to));
 		}
 
 		let mut other_tags = Vec::new();
@@ -104,32 +104,32 @@ pub async fn view_names(
 		if let Some(tags) = data.tags.as_ref() {
 			for tag in tags {
 				match tag.as_str() {
-					"common" => names = names.filter(schema::names::frequency.ge(0.5)),
-					"short" => names = names.filter(schema::names::length.le(7)),
+					"common" => names = names.filter(schema::name::frequency.ge(0.5)),
+					"short" => names = names.filter(schema::name::length.le(7)),
 					"liked" => {
-						names = names.filter(schema::likes::username.is_not_null());
+						names = names.filter(schema::like::username.is_not_null());
 					}
 					"taken" => {
 						names = names
-							.filter(schema::names::status.ne(i16::from(Status::BatchAvailable)));
+							.filter(schema::name::status.ne(i16::from(Status::BatchAvailable)));
 						has_taken_tag = true;
 					}
 					"banned" => {
-						names = names.filter(schema::names::status.eq(i16::from(Status::Banned)));
+						names = names.filter(schema::name::status.eq(i16::from(Status::Banned)));
 						has_taken_tag = true;
 					}
-					"name" => names = names.filter(schema::names::tags.contains(vec!["name"])),
+					"name" => names = names.filter(schema::name::tags.contains(vec!["name"])),
 					tag => other_tags.push(tag),
 				}
 			}
 		}
 
 		if !has_taken_tag {
-			names = names.filter(schema::names::status.eq(i16::from(Status::Available)));
+			names = names.filter(schema::name::status.eq(i16::from(Status::Available)));
 		}
 
 		if !other_tags.is_empty() {
-			names = names.filter(schema::names::tags.contains(other_tags));
+			names = names.filter(schema::name::tags.contains(other_tags));
 		}
 
 		names
@@ -139,15 +139,15 @@ pub async fn view_names(
 		.limit(data.limit.unwrap_or(10))
 		.offset(data.offset.unwrap_or(0))
 		.select((
-			schema::names::username,
-			schema::names::frequency,
-			schema::names::definition.nullable(),
-			schema::names::tags.nullable(),
-			schema::names::verified_at,
-			schema::names::updated_at,
-			schema::names::status,
+			schema::name::username,
+			schema::name::frequency,
+			schema::name::definition.nullable(),
+			schema::name::tags.nullable(),
+			schema::name::verified_at,
+			schema::name::updated_at,
+			schema::name::status,
 			// TRUE if it is liked, FALSE otherwise -- default to FALSE if the value is NULL
-			schema::likes::username
+			schema::like::username
 				.is_not_null()
 				.nullable()
 				.or(false.into_sql::<diesel::sql_types::Bool>()),
@@ -156,54 +156,48 @@ pub async fn view_names(
 	let names = {
 		match (data.sort.as_deref(), data.column.as_deref()) {
 			(Some("asc"), Some("frequency")) => {
-				names = names.order(schema::names::frequency.asc());
+				names = names.order(schema::name::frequency.asc());
 			}
 			(Some("asc"), Some("length")) => {
-				names = names.order((schema::names::length.asc(), schema::names::frequency.desc()))
+				names = names.order((schema::name::length.asc(), schema::name::frequency.desc()))
 			}
 			(_, Some("length")) => {
-				names = names.order((
-					schema::names::length.desc(),
-					schema::names::frequency.desc(),
-				))
+				names = names.order((schema::name::length.desc(), schema::name::frequency.desc()))
 			}
 			(Some("asc"), Some("updatedAt")) => {
 				names = names.order((
-					schema::names::updated_at.asc(),
-					schema::names::frequency.desc(),
+					schema::name::updated_at.asc(),
+					schema::name::frequency.desc(),
 				))
 			}
 			(_, Some("updatedAt")) => {
 				names = names.order((
-					schema::names::updated_at.desc(),
-					schema::names::frequency.desc(),
+					schema::name::updated_at.desc(),
+					schema::name::frequency.desc(),
 				))
 			}
 			(Some("asc"), Some("verifiedAt")) => {
 				names = names.order((
-					schema::names::verified_at.asc(),
-					schema::names::frequency.desc(),
+					schema::name::verified_at.asc(),
+					schema::name::frequency.desc(),
 				))
 			}
 			(_, Some("verifiedAt")) => {
 				names = names.order((
-					schema::names::verified_at.desc(),
-					schema::names::frequency.desc(),
+					schema::name::verified_at.desc(),
+					schema::name::frequency.desc(),
 				))
 			}
 			(Some("asc"), Some("username")) => {
-				names = names.order((
-					schema::names::username.asc(),
-					schema::names::frequency.desc(),
-				))
+				names = names.order((schema::name::username.asc(), schema::name::frequency.desc()))
 			}
 			(_, Some("username")) => {
 				names = names.order((
-					schema::names::username.desc(),
-					schema::names::frequency.desc(),
+					schema::name::username.desc(),
+					schema::name::frequency.desc(),
 				))
 			}
-			_ => names = names.order(schema::names::frequency.desc()),
+			_ => names = names.order(schema::name::frequency.desc()),
 		}
 
 		names
@@ -241,9 +235,9 @@ pub async fn like_name(
 		.get()
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
-	let user_id = schema::users::table
-		.select(schema::users::id)
-		.filter(schema::users::key.eq(token))
+	let user_id = schema::user::table
+		.select(schema::user::id)
+		.filter(schema::user::key.eq(token))
 		.get_result::<i32>(connection);
 
 	let user_id = match user_id {
@@ -254,10 +248,10 @@ pub async fn like_name(
 	// insert into likes (username, user_id) values ($1, $2) on conflict do nothing
 	// get the user_id from the token in the same query
 
-	let updates = diesel::insert_into(schema::likes::table)
+	let updates = diesel::insert_into(schema::like::table)
 		.values((
-			schema::likes::username.eq(name.into_inner()),
-			schema::likes::user_id.eq(user_id),
+			schema::like::username.eq(name.into_inner()),
+			schema::like::user_id.eq(user_id),
 		))
 		.on_conflict_do_nothing()
 		.execute(connection)
@@ -285,9 +279,9 @@ pub async fn dislike_name(
 		.get()
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
-	let user_id = schema::users::table
-		.select(schema::users::id)
-		.filter(schema::users::key.eq(token))
+	let user_id = schema::user::table
+		.select(schema::user::id)
+		.filter(schema::user::key.eq(token))
 		.get_result::<i32>(connection);
 
 	let user_id = match user_id {
@@ -295,11 +289,11 @@ pub async fn dislike_name(
 		Err(_) => return Err(actix_web::error::ErrorUnauthorized("")),
 	};
 
-	let updates = diesel::delete(schema::likes::table)
+	let updates = diesel::delete(schema::like::table)
 		.filter(
-			schema::likes::username
+			schema::like::username
 				.eq(name.into_inner())
-				.and(schema::likes::user_id.eq(user_id)),
+				.and(schema::like::user_id.eq(user_id)),
 		)
 		.execute(connection)
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;

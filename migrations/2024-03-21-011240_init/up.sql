@@ -1,0 +1,49 @@
+CREATE TABLE name (
+	username TEXT PRIMARY KEY,
+	popularity DOUBLE PRECISION NOT NULL,
+	definition TEXT[] NOT NULL,
+	frequency DOUBLE PRECISION NOT NULL,
+	length INTEGER NOT NULL,
+	updating BOOLEAN NOT NULL,
+	tags TEXT[] NOT NULL,
+	status SMALLINT NOT NULL,
+	verified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+	checked_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+	updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "user" (
+	id SERIAL PRIMARY KEY,
+	key TEXT NOT NULL
+);
+
+CREATE TABLE proxy (
+	id SERIAL PRIMARY KEY,
+	address TEXT NOT NULL,
+	port INTEGER NOT NULL,
+	username TEXT,
+	password TEXT,
+	note TEXT
+);
+
+CREATE TABLE account (
+	id SERIAL PRIMARY KEY,
+	username TEXT NOT NULL,
+	password TEXT NOT NULL
+);
+
+CREATE TABLE snipe (
+	username TEXT PRIMARY KEY,
+	needed SMALLINT NOT NULL,
+	count SMALLINT NOT NULL,
+	email TEXT NOT NULL,
+	password TEXT NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "like" (
+	username TEXT NOT NULL,
+	user_id INTEGER NOT NULL,
+	PRIMARY KEY (username, user_id)
+);

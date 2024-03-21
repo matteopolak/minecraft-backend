@@ -34,19 +34,19 @@ pub async fn create_snipe(
 		.get()
 		.map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
-	let _user_id = schema::users::table
-		.select(schema::users::id)
-		.filter(schema::users::key.eq(token))
+	let _user_id = schema::user::table
+		.select(schema::user::id)
+		.filter(schema::user::key.eq(token))
 		.get_result::<i32>(connection)
 		.map_err(|_| actix_web::error::ErrorUnauthorized(""))?;
 
 	// add the snipe to the database
-	let updates = diesel::insert_into(schema::snipes::table)
+	let updates = diesel::insert_into(schema::snipe::table)
 		.values((
-			schema::snipes::username.eq(&data.username),
-			schema::snipes::needed.eq(&data.workers),
-			schema::snipes::email.eq(&data.email),
-			schema::snipes::password.eq(&data.password),
+			schema::snipe::username.eq(&data.username),
+			schema::snipe::needed.eq(&data.workers),
+			schema::snipe::email.eq(&data.email),
+			schema::snipe::password.eq(&data.password),
 		))
 		.on_conflict_do_nothing()
 		.execute(connection)

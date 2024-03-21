@@ -15,9 +15,9 @@ impl Postgres {
 
 impl Connector for Postgres {
 	fn next(&mut self, size: i64) -> Option<Vec<String>> {
-		schema::names::table
-			.select(schema::names::username)
-			.order(schema::names::checked_at.asc())
+		schema::name::table
+			.select(schema::name::username)
+			.order(schema::name::checked_at.asc())
 			.limit(size)
 			.load::<String>(&mut self.pool.get().expect("failed to get connection from pool"))
 			.ok()
@@ -41,11 +41,11 @@ impl Connector for Postgres {
 		// "if the status is Status::Available or Status::Banned, then don't change it, otherwise set it to Status::BatchAvailable"
 		let case = sql::<SmallInt>("CASE WHEN \"status\" IN (1, 3) THEN \"status\" ELSE 4 END");
 
-		diesel::update(schema::names::table)
-			.filter(schema::names::username.eq_any(&names))
+		diesel::update(schema::name::table)
+			.filter(schema::name::username.eq_any(&names))
 			.set((
-				schema::names::checked_at.eq(diesel::dsl::now),
-				schema::names::status.eq(case),
+				schema::name::checked_at.eq(diesel::dsl::now),
+				schema::name::status.eq(case),
 			))
 			.execute(&mut database::get_pool().get()?)?;
 
@@ -54,11 +54,11 @@ impl Connector for Postgres {
 
 	fn submit_unavailable(&self, names: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
 		// set unavailable names to Status::Taken
-		diesel::update(schema::names::table)
-			.filter(schema::names::username.eq_any(&names))
+		diesel::update(schema::name::table)
+			.filter(schema::name::username.eq_any(&names))
 			.set((
-				schema::names::checked_at.eq(diesel::dsl::now),
-				schema::names::status.eq(i16::from(Status::BatchTaken)),
+				schema::name::checked_at.eq(diesel::dsl::now),
+				schema::name::status.eq(i16::from(Status::BatchTaken)),
 			))
 			.execute(&mut database::get_pool().get()?)?;
 

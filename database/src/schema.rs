@@ -1,72 +1,62 @@
-use diesel::{allow_tables_to_appear_in_same_query, table};
+diesel::table! {
+	account (id) {
+		id -> Int4,
+		username -> Text,
+		password -> Text,
+	}
+}
 
-table! {
-	names (username) {
+diesel::table! {
+	like (username, user_id) {
+		username -> Text,
+		user_id -> Int4,
+	}
+}
+
+diesel::table! {
+	name (username) {
 		username -> Text,
 		popularity -> Float8,
-		#[sql_name = "createdAt"]
-		created_at -> Timestamptz,
-		#[sql_name = "updatedAt"]
-		updated_at -> Timestamptz,
-		#[sql_name = "checkedAt"]
-		checked_at -> Timestamptz,
-		#[sql_name = "verifiedAt"]
-		verified_at -> Timestamptz,
-		definition -> Nullable<Array<Text>>,
+		definition -> Array<Text>,
 		frequency -> Float8,
-		length -> Integer,
+		length -> Int4,
 		updating -> Bool,
-		tags -> Nullable<Array<Text>>,
-		status -> SmallInt,
+		tags -> Array<Text>,
+		status -> Int2,
+		verified_at -> Timestamptz,
+		checked_at -> Timestamptz,
+		updated_at -> Timestamptz,
+		created_at -> Timestamptz,
 	}
 }
 
-table! {
-	users (id) {
-		id -> Integer,
-		key -> Text,
-	}
-}
-
-table! {
-	proxies (id) {
-		id -> Integer,
+diesel::table! {
+	proxy (id) {
+		id -> Int4,
 		address -> Text,
-		port -> Integer,
+		port -> Int4,
 		username -> Nullable<Text>,
 		password -> Nullable<Text>,
 		note -> Nullable<Text>,
 	}
 }
 
-table! {
-	accounts (id) {
-		id -> Integer,
+diesel::table! {
+	snipe (username) {
 		username -> Text,
-		password -> Text,
-	}
-}
-
-table! {
-	snipes (username) {
-		username -> Text,
-		#[sql_name = "createdAt"]
-		created_at -> Timestamptz,
-		needed -> SmallInt,
-		count -> SmallInt,
+		needed -> Int2,
+		count -> Int2,
 		email -> Text,
 		password -> Text,
+		created_at -> Timestamptz,
 	}
 }
 
-table! {
-	#[sql_name = "_NameToUser"]
-	likes (username, user_id) {
-		#[sql_name = "A"]
-		username -> Text,
-		#[sql_name = "B"]
-		user_id -> Integer,
+diesel::table! {
+	user (id) {
+		id -> Int4,
+		key -> Text,
 	}
 }
 
-allow_tables_to_appear_in_same_query!(names, users, proxies, accounts, likes);
+diesel::allow_tables_to_appear_in_same_query!(account, like, name, proxy, snipe, user,);

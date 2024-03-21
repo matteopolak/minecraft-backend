@@ -21,8 +21,8 @@ pub struct ViewNamesOptions {
 pub struct FormattedName {
 	pub username: String,
 	pub frequency: f64,
-	pub definition: Option<Vec<String>>,
-	pub tags: Option<Vec<String>>,
+	pub definition: Vec<String>,
+	pub tags: Vec<String>,
 	pub verified_at: chrono::DateTime<chrono::Utc>,
 	pub updated_at: chrono::DateTime<chrono::Utc>,
 	pub status: i16,
@@ -141,8 +141,8 @@ pub async fn view_names(
 		.select((
 			schema::name::username,
 			schema::name::frequency,
-			schema::name::definition.nullable(),
-			schema::name::tags.nullable(),
+			schema::name::definition,
+			schema::name::tags,
 			schema::name::verified_at,
 			schema::name::updated_at,
 			schema::name::status,
